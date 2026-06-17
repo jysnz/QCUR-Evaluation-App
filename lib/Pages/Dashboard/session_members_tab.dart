@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
+import 'package:qcur_evaluation/Pages/Dashboard/add_trainee_page.dart';
 
 class SessionMembersTab extends StatefulWidget {
   final String sessionId;
@@ -19,6 +20,17 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
   List<Map<String, dynamic>> _allTrainees = [];
   List<String> _selectedTraineeIds = [];
   bool _isLoading = true;
+  String _searchQuery = '';
+  String? _roleFilter;
+
+  final List<String> _roles = [
+    'Programmer',
+    'Builder',
+    'Designer',
+    'Notebook Manager',
+    'Driver',
+    'Coach Driver'
+  ];
 
   @override
   void initState() {
@@ -78,18 +90,44 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
     }
   }
 
+  List<Map<String, dynamic>> get _filteredTrainees {
+    return _allTrainees.where((t) {
+      final matchesSearch = t['full_name']
+          .toString()
+          .toLowerCase()
+          .contains(_searchQuery.toLowerCase());
+      
+      if (_roleFilter == null) return matchesSearch;
+      
+      final List<dynamic> traineeRoles = t['role'] ?? [];
+      final matchesRole = traineeRoles.contains(_roleFilter);
+      
+      return matchesSearch && matchesRole;
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBackground,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        title: Text('SESSION MEMBERS', style: AppTypography.h3.copyWith(letterSpacing: 2)),
+        title: Text('SESSION TRAINEES', style: AppTypography.h3.copyWith(letterSpacing: 2)),
         actions: [
           IconButton(
-            onPressed: _addTrainee,
-            icon: const Icon(Icons.person_add_alt_1, color: kAccent),
-            tooltip: 'Add New Personnel',
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AddTraineePage(sessionId: widget.sessionId),
+                ),
+              );
+              if (result == true) {
+                _fetchData();
+              }
+            },
+            icon: const Icon(Icons.person_add_alt_1_outlined, color: kAccent),
+            tooltip: 'Add New People',
           ),
           const SizedBox(width: 8),
         ],
@@ -103,19 +141,23 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
               child: Column(
                 children: [
                   const SectionHeader(
-                    title: 'Personnel Assignment',
-                    subtitle: 'Assign trainees participating in this session',
+                    title: 'People in this Session',
+                    subtitle: 'Manage the people taking part in this training',
                   ),
                   const SizedBox(height: 24),
+                  _buildSearchAndFilters(),
+                  const SizedBox(height: 16),
                   Expanded(
-                    child: TechnicalCard(
-                      padding: EdgeInsets.zero,
-                      child: _isLoading
-                          ? const Center(child: CircularProgressIndicator(color: kAccent))
-                          : _allTrainees.isEmpty
-                              ? _buildEmptyState()
-                              : _buildTraineesList(),
-                    ),
+                    child: _isLoading
+                        ? const Center(child: CircularProgressIndicator(color: kAccent))
+                        : RefreshIndicator(
+                            onRefresh: _fetchData,
+                            color: kAccent,
+                            backgroundColor: kSurfaceElevated,
+                            child: _allTrainees.isEmpty
+                                ? _buildEmptyState()
+                                : _buildTraineesList(),
+                          ),
                   ),
                 ],
               ),
@@ -126,187 +168,170 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
     );
   }
 
-  Future<void> _addTrainee() async {
-    final nameController = TextEditingController();
-    final emailController = TextEditingController();
-    List<String> selectedRoles = [];
-    final List<String> roles = [
-      'Programmer',
-      'Builder',
-      'Designer',
-      'Notebook Manager',
-      'Driver',
-      'Coach Driver'
-    ];
-
-    bool shouldAddAnother = false;
-
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: kSurface,
-          surfaceTintColor: Colors.transparent,
-          title: Text('NEW PERSONNEL', style: AppTypography.h3.copyWith(color: kAccent)),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AppTextField(
-                  label: 'FULL NAME',
-                  controller: nameController,
-                  hint: 'Enter trainee name',
-                ),
-                const SizedBox(height: 16),
-                AppTextField(
-                  label: 'EMAIL ADDRESS',
-                  controller: emailController,
-                  hint: 'Optional contact info',
-                ),
-                const SizedBox(height: 16),
-                Text('ASSIGNED ROLES', style: AppTypography.overline),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: kSurfaceElevated,
-                    borderRadius: BorderRadius.circular(kRadiusSmall),
-                    border: Border.all(color: Colors.white10),
-                  ),
-                  child: Column(
-                    children: roles.map((role) {
-                      final isChecked = selectedRoles.contains(role);
-                      return CheckboxListTile(
-                        title: Text(role.toUpperCase(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                        value: isChecked,
-                        dense: true,
-                        activeColor: kAccent,
-                        checkColor: Colors.black,
-                        contentPadding: EdgeInsets.zero,
-                        onChanged: (v) {
-                          setDialogState(() {
-                            if (v == true) {
-                              selectedRoles.add(role);
-                            } else {
-                              selectedRoles.remove(role);
-                            }
-                          });
-                        },
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
+  Widget _buildSearchAndFilters() {
+    return Column(
+      children: [
+        TechnicalCard(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: TextField(
+            onChanged: (v) => setState(() => _searchQuery = v),
+            style: AppTypography.bodyLg,
+            decoration: InputDecoration(
+              hintText: 'SEARCH PEOPLE...',
+              hintStyle: AppTypography.overline.copyWith(color: kForegroundDisabled),
+              icon: const Icon(Icons.search, color: kAccent, size: 20),
+              border: InputBorder.none,
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text('CANCEL', style: AppTypography.caption.copyWith(color: kForegroundMuted)),
-            ),
-            TextButton(
-              onPressed: () {
-                shouldAddAnother = true;
-                Navigator.of(context).pop(true);
-              },
-              child: Text('ADD ANOTHER', style: AppTypography.caption.copyWith(color: kAccent)),
-            ),
-            TechnicalButton(
-              label: 'ADD',
-              onTap: () {
-                shouldAddAnother = false;
-                Navigator.of(context).pop(true);
-              },
-            ),
-          ],
+        ),
+        const SizedBox(height: 12),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _buildFilterChip(null, 'ALL'),
+              const SizedBox(width: 8),
+              ..._roles.map((r) => Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: _buildFilterChip(r, r.toUpperCase()),
+              )),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilterChip(String? value, String label) {
+    final isSelected = _roleFilter == value;
+    return GestureDetector(
+      onTap: () => setState(() => _roleFilter = value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? kAccent.withValues(alpha: 0.1) : kSurfaceElevated,
+          borderRadius: BorderRadius.circular(kRadiusSmall),
+          border: Border.all(
+            color: isSelected ? kAccent : Colors.white.withValues(alpha: 0.05),
+          ),
+        ),
+        child: Text(
+          label,
+          style: AppTypography.overline.copyWith(
+            color: isSelected ? kAccent : kForegroundMuted,
+            fontSize: 8,
+          ),
         ),
       ),
     );
-
-    if (result == true && nameController.text.isNotEmpty) {
-      try {
-        final traineeData = await supabase.from('trainees').insert({
-          'full_name': nameController.text.trim(),
-          'email': emailController.text.trim().isEmpty ? null : emailController.text.trim(),
-          'role': selectedRoles,
-          'creator_id': supabase.auth.currentUser!.id,
-        }).select().single();
-
-        // Automatically assign to session
-        await supabase.from('session_trainees').insert({
-          'session_id': widget.sessionId,
-          'trainee_id': traineeData['id'],
-        });
-
-        _fetchData();
-
-        if (shouldAddAnother) {
-          if (mounted) _addTrainee();
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-        }
-      }
-    }
   }
 
   Widget _buildTraineesList() {
-    return ListView.separated(
-      itemCount: _allTrainees.length,
-      separatorBuilder: (context, index) => const Divider(height: 1, color: Colors.white10),
+    final trainees = _filteredTrainees;
+    
+    if (trainees.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.search_off_outlined, size: 48, color: kForegroundDisabled),
+            const SizedBox(height: 16),
+            Text('NO ONE FOUND', style: AppTypography.overline.copyWith(color: kForegroundMuted)),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
+      itemCount: trainees.length,
       itemBuilder: (context, index) {
-        final trainee = _allTrainees[index];
-        final isSelected = _selectedTraineeIds.contains(trainee['id']);
+        final trainee = trainees[index];
+        final id = trainee['id'].toString();
         final List<dynamic> traineeRoles = trainee['role'] ?? [];
         
-        return CheckboxListTile(
-          value: isSelected,
-          onChanged: (v) => _toggleMember(trainee['id'], v ?? false),
-          activeColor: kAccent,
-          checkColor: Colors.black,
-          title: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  trainee['full_name'].toString().toUpperCase(),
-                  style: AppTypography.bodyLg.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: isSelected ? kForeground : kForegroundMuted,
-                  ),
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12.0),
+          child: TechnicalCard(
+            padding: EdgeInsets.zero,
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: kAccent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
                 ),
+                child: const Icon(Icons.person, color: kAccent, size: 20),
               ),
-              if (traineeRoles.isNotEmpty)
-                Wrap(
-                  spacing: 4,
-                  children: traineeRoles.map((r) => Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: kAccent.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(4),
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    trainee['full_name'].toString().toUpperCase(),
+                    style: AppTypography.bodyLg.copyWith(
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1,
                     ),
-                    child: Text(
-                      r.toString().toUpperCase(),
-                      style: AppTypography.overline.copyWith(color: kAccent, fontSize: 7),
+                  ),
+                  if (traineeRoles.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 4,
+                      runSpacing: 4,
+                      children: traineeRoles.map((r) => AppStatusBadge(
+                        label: r.toString(),
+                        color: kAccent,
+                      )).toList(),
                     ),
-                  )).toList(),
-                ),
-            ],
-          ),
-          subtitle: trainee['email'] != null 
-              ? Text(trainee['email'], style: AppTypography.caption) 
-              : null,
-          secondary: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: isSelected ? kAccent.withValues(alpha: 0.1) : kSurfaceElevated,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              isSelected ? Icons.person : Icons.person_outline,
-              color: isSelected ? kAccent : kForegroundDisabled,
-              size: 20,
+                  ],
+                ],
+              ),
+              subtitle: trainee['email'] != null 
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Text(
+                        trainee['email'].toString().toLowerCase(), 
+                        style: AppTypography.caption.copyWith(fontStyle: FontStyle.italic),
+                      ),
+                    ) 
+                  : null,
+              trailing: IconButton(
+                icon: const Icon(Icons.person_remove_alt_1_outlined, color: kError, size: 20),
+                tooltip: 'Remove from Session',
+                onPressed: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      backgroundColor: kSurface,
+                      title: const Text('REMOVE FROM SESSION?', style: AppTypography.h3),
+                      content: Text('Remove ${trainee['full_name']} from this training session?', style: AppTypography.body),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('CANCEL')),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true), 
+                          child: const Text('REMOVE', style: TextStyle(color: kError, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  );
+                  
+                  if (confirm == true) {
+                    try {
+                      await supabase.from('session_trainees')
+                          .delete()
+                          .eq('session_id', widget.sessionId)
+                          .eq('trainee_id', id);
+                      _fetchData();
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Remove failed: $e')));
+                      }
+                    }
+                  }
+                },
+              ),
             ),
           ),
         );
@@ -315,29 +340,45 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.person_off_outlined, size: 48, color: kForegroundMuted.withValues(alpha: 0.2)),
-          const SizedBox(height: 16),
-          Text(
-            'NO PERSONNEL IN DATABASE',
-            style: AppTypography.overline.copyWith(color: kForegroundMuted),
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        SizedBox(height: MediaQuery.of(context).size.height * 0.2),
+        Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.person_off_outlined, size: 64, color: kForegroundDisabled.withValues(alpha: 0.2)),
+              const SizedBox(height: 24),
+              Text(
+                'LIST IS EMPTY',
+                style: AppTypography.h3.copyWith(color: kForegroundMuted, letterSpacing: 2),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Add people to this session to see them here.',
+                style: AppTypography.caption,
+              ),
+              const SizedBox(height: 32),
+              TechnicalButton(
+                label: 'ADD PEOPLE',
+                onTap: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => AddTraineePage(sessionId: widget.sessionId),
+                    ),
+                  );
+                  if (result == true) {
+                    _fetchData();
+                  }
+                },
+                icon: Icons.person_add_alt_1_outlined,
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Add trainees directly to this session.',
-            style: AppTypography.caption,
-          ),
-          const SizedBox(height: 24),
-          TechnicalButton(
-            label: 'ADD FIRST TRAINEE',
-            onTap: _addTrainee,
-            icon: Icons.person_add_alt_1,
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

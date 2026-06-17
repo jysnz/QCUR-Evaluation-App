@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/activity_management_page.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/session_members_tab.dart';
+import 'package:qcur_evaluation/Pages/Dashboard/rankings_tab.dart';
 
 class SessionDetailsPage extends StatefulWidget {
   final String sessionId;
@@ -34,7 +35,9 @@ class _SessionDetailsPageState extends State<SessionDetailsPage> {
       SessionMembersTab(
         sessionId: widget.sessionId,
       ),
-      const RankingsPlaceholder(),
+      RankingsTab(
+        sessionId: widget.sessionId,
+      ),
     ];
   }
 
@@ -74,44 +77,6 @@ class _SessionDetailsPageState extends State<SessionDetailsPage> {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class RankingsPlaceholder extends StatelessWidget {
-  const RankingsPlaceholder({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: kBackground,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        title: Text('RANKINGS', style: AppTypography.h3.copyWith(letterSpacing: 2)),
-      ),
-      body: Stack(
-        children: [
-          const TechnicalGridBackground(),
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.construction_rounded, size: 64, color: kWarning.withValues(alpha: 0.5)),
-                const SizedBox(height: 24),
-                Text(
-                  'UNDER CONSTRUCTION',
-                  style: AppTypography.h2.copyWith(color: kWarning, letterSpacing: 4),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'The ranking algorithm is being calibrated.',
-                  style: AppTypography.caption,
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

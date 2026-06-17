@@ -147,8 +147,8 @@ class _DashboardPageState extends State<DashboardPage> {
                 children: [
                   const SizedBox(height: 16),
                   const SectionHeader(
-                    title: 'Command Center',
-                    subtitle: 'Operational overview and session management',
+                    title: 'Home',
+                    subtitle: 'Manage your training sessions',
                   ),
                   const SizedBox(height: 24),
                   _buildStatsRow(),
@@ -163,9 +163,14 @@ class _DashboardPageState extends State<DashboardPage> {
                           Expanded(
                             child: _isLoading
                                 ? const Center(child: CircularProgressIndicator(color: kAccent))
-                                : _sessions.isEmpty
-                                    ? _buildEmptyState()
-                                    : _buildSessionsList(),
+                                : RefreshIndicator(
+                                    onRefresh: _fetchData,
+                                    color: kAccent,
+                                    backgroundColor: kSurfaceElevated,
+                                    child: _sessions.isEmpty
+                                        ? _buildEmptyState()
+                                        : _buildSessionsList(),
+                                  ),
                           ),
                         ],
                       ),
@@ -173,7 +178,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   ),
                   const SizedBox(height: 16),
                   TechnicalButton(
-                    label: 'Initialize New Session',
+                    label: 'Start New Session',
                     icon: Icons.add_to_photos_outlined,
                     onTap: () async {
                       final result = await Navigator.of(context).push(
@@ -239,7 +244,7 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
       child: Row(
         children: [
-          Expanded(flex: 3, child: Text('IDENTIFIER', style: AppTypography.overline.copyWith(color: kForegroundMuted))),
+          Expanded(flex: 3, child: Text('NAME', style: AppTypography.overline.copyWith(color: kForegroundMuted))),
           Expanded(flex: 2, child: Text('DATE', style: AppTypography.overline.copyWith(color: kForegroundMuted))),
           Expanded(flex: 2, child: Text('STATUS', style: AppTypography.overline.copyWith(color: kForegroundMuted))),
         ],
@@ -249,6 +254,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Widget _buildSessionsList() {
     return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
       itemCount: _sessions.length,
       separatorBuilder: (context, index) => const Divider(height: 1, color: Colors.white10),
       itemBuilder: (context, index) {
@@ -320,23 +326,29 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.layers_clear_outlined, size: 48, color: kForegroundMuted.withValues(alpha: 0.2)),
-          const SizedBox(height: 16),
-          Text(
-            'NO OPERATIONAL SESSIONS',
-            style: AppTypography.overline.copyWith(color: kForegroundMuted),
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        SizedBox(height: MediaQuery.of(context).size.height * 0.2),
+        Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.layers_clear_outlined, size: 48, color: kForegroundMuted.withValues(alpha: 0.2)),
+              const SizedBox(height: 16),
+              Text(
+                'NO SESSIONS YET',
+                style: AppTypography.overline.copyWith(color: kForegroundMuted),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Start your first session to begin.',
+                style: AppTypography.caption.copyWith(color: kForegroundDisabled),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Initialize your first session to begin evaluation.',
-            style: AppTypography.caption.copyWith(color: kForegroundDisabled),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

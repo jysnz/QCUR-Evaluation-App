@@ -22,18 +22,32 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
   final _nameController = TextEditingController();
   bool _isGraded = false;
   String _scoringDirection = 'higher_is_better';
-  String? _targetRole;
+  String? _targetRoleId;
   bool _isLoading = false;
+  bool _isFetchingRoles = true;
   final supabase = Supabase.instance.client;
 
-  final List<String> _roles = [
-    'Programmer',
-    'Builder',
-    'Designer',
-    'Notebook Manager',
-    'Driver',
-    'Coach Driver'
-  ];
+  List<Map<String, dynamic>> _roles = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchRoles();
+  }
+
+  Future<void> _fetchRoles() async {
+    setState(() => _isFetchingRoles = true);
+    try {
+      final data = await supabase.from('roles').select().order('name');
+      setState(() {
+        _roles = List<Map<String, dynamic>>.from(data);
+        _isFetchingRoles = false;
+      });
+    } catch (e) {
+      debugPrint('Error fetching roles: $e');
+      setState(() => _isFetchingRoles = false);
+    }
+  }
 
   Future<void> _saveActivity() async {
     if (_nameController.text.trim().isEmpty) {
@@ -57,15 +71,24 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
         nextIndex = (currentActivities.map((a) => a['order_index'] as int).reduce((a, b) => a > b ? a : b)) + 1;
       }
 
-      await supabase.from('activities').insert({
+      final Map<String, dynamic> insertData = {
         'session_id': widget.sessionId,
         'parent_id': widget.parentId,
         'name': _nameController.text.trim(),
         'is_graded': _isGraded,
         'scoring_direction': _isGraded ? _scoringDirection : null,
-        'target_role': _targetRole,
         'order_index': nextIndex,
-      });
+      };
+
+      if (_targetRoleId != null) {
+        insertData['target_role_id'] = _targetRoleId;
+        // Also keep target_role string for backward compatibility if needed, 
+        // but finding the name from ID
+        final role = _roles.firstWhere((r) => r['id'] == _targetRoleId);
+        insertData['target_role'] = role['name'];
+      }
+
+      await supabase.from('activities').insert(insertData);
 
       if (mounted) {
         Navigator.of(context).pop(true);
@@ -176,25 +199,30 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
             border: Border.all(color: Colors.white10),
           ),
           child: DropdownButtonHideUnderline(
-            child: DropdownButton<String?>(
-              value: _targetRole,
-              isExpanded: true,
-              hint: const Text('ASSIGN TO ALL PERSONNEL', style: TextStyle(color: kForegroundDisabled, fontSize: 14)),
-              dropdownColor: kSurfaceElevated,
-              style: AppTypography.bodyLg.copyWith(fontWeight: FontWeight.bold),
-              icon: const Icon(Icons.keyboard_arrow_down, color: kAccent),
-              items: [
-                const DropdownMenuItem<String?>(
-                  value: null,
-                  child: Text('MANUAL ASSIGNMENT / ALL'),
+            child: _isFetchingRoles 
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: kAccent))),
+                )
+              : DropdownButton<String?>(
+                  value: _targetRoleId,
+                  isExpanded: true,
+                  hint: const Text('ASSIGN TO ALL PERSONNEL', style: TextStyle(color: kForegroundDisabled, fontSize: 14)),
+                  dropdownColor: kSurfaceElevated,
+                  style: AppTypography.bodyLg.copyWith(fontWeight: FontWeight.bold),
+                  icon: const Icon(Icons.keyboard_arrow_down, color: kAccent),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('MANUAL ASSIGNMENT / ALL'),
+                    ),
+                    ..._roles.map((role) => DropdownMenuItem(
+                      value: role['id'].toString(),
+                      child: Text(role['name'].toString().toUpperCase()),
+                    )),
+                  ],
+                  onChanged: (v) => setState(() => _targetRoleId = v),
                 ),
-                ..._roles.map((role) => DropdownMenuItem(
-                  value: role,
-                  child: Text(role.toUpperCase()),
-                )),
-              ],
-              onChanged: (v) => setState(() => _targetRole = v),
-            ),
           ),
         ),
       ],

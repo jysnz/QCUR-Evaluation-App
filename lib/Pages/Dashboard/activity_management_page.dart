@@ -21,6 +21,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
   final supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _activities = [];
   List<Map<String, dynamic>> _sessionTrainees = [];
+  List<Map<String, dynamic>> _roles = [];
   bool _isLoading = true;
 
   @override
@@ -32,22 +33,33 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
   Future<void> _fetchData() async {
     setState(() => _isLoading = true);
     try {
-      // Fetch activities
+      // Fetch activities with role info
       final activitiesData = await supabase
           .from('activities')
-          .select()
+          .select('*, roles(name)')
           .eq('session_id', widget.sessionId)
           .order('order_index');
 
-      // Fetch ONLY trainees assigned to this session
+      // Fetch ALL roles for assignment
+      final rolesData = await supabase.from('roles').select().order('name');
+
+      // Fetch ONLY trainees assigned to this session with their structured roles
       final sessionMembersData = await supabase
           .from('session_trainees')
-          .select('trainee_id, trainees!inner(*)')
+          .select('''
+            trainee_id, 
+            trainees!inner (
+              *,
+              trainee_roles (
+                role_id
+              )
+            )
+          ''')
           .eq('session_id', widget.sessionId);
 
       final traineesList = sessionMembersData.map((m) => m['trainees'] as Map<String, dynamic>).toList();
 
-      // Fetch activity assignments
+      // Fetch manual activity assignments
       final assignmentsData = await supabase
           .from('activity_trainees')
           .select('activity_id, trainee_id');
@@ -55,18 +67,25 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
       setState(() {
         _activities = List<Map<String, dynamic>>.from(activitiesData);
         _sessionTrainees = traineesList;
+        _roles = List<Map<String, dynamic>>.from(rolesData);
         
         // Map assignments to activities
         for (var activity in _activities) {
-          if (activity['target_role'] != null) {
-            // Role-based assignment: find trainees in this session with the matching role
+          if (activity['target_role_id'] != null) {
+            // Role-based assignment: find trainees in this session with the matching role_id
+            final targetRoleId = activity['target_role_id'];
             activity['trainee_ids'] = _sessionTrainees
                 .where((t) {
-                  final List<dynamic> traineeRoles = t['role'] ?? [];
-                  return traineeRoles.contains(activity['target_role']);
+                  final List<dynamic> traineeRoles = t['trainee_roles'] ?? [];
+                  return traineeRoles.any((tr) => tr['role_id'] == targetRoleId);
                 })
                 .map((t) => t['id'])
                 .toList();
+            
+            // For UI display, ensure role name is available
+            if (activity['roles'] != null) {
+              activity['display_role'] = activity['roles']['name'];
+            }
           } else {
             // Manual assignment
             activity['trainee_ids'] = assignmentsData
@@ -79,6 +98,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
         _isLoading = false;
       });
     } catch (e) {
+      debugPrint('Error fetching data: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error fetching data: $e')),
@@ -104,83 +124,103 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
     }
   }
 
-  Future<void> _manageTrainees(Map<String, dynamic> activity) async {
-    final selectedIds = List<String>.from(activity['trainee_ids'] ?? []);
+  Future<void> _showRoleAssignmentDialog(Map<String, dynamic> activity) async {
+    String? currentRoleId = activity['target_role_id'];
 
-    final result = await showDialog<bool>(
+    final result = await showDialog<String?>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: kSurface,
           surfaceTintColor: Colors.transparent,
-          title: Text('ASSIGN PERSONNEL', style: AppTypography.h3.copyWith(color: kAccent)),
+          title: Text('ASSIGN TO ROLE', style: AppTypography.h3.copyWith(color: kAccent)),
           content: SizedBox(
             width: double.maxFinite,
-            child: _sessionTrainees.isEmpty
+            child: _roles.isEmpty
                 ? const Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.people_outline, color: kForegroundDisabled, size: 40),
+                        Icon(Icons.psychology_outlined, color: kForegroundDisabled, size: 40),
                         SizedBox(height: 16),
-                        Text('NO SESSION MEMBERS', style: AppTypography.caption),
-                        Text('Add members in the Members tab first.', 
-                          style: TextStyle(color: kForegroundDisabled, fontSize: 10),
-                          textAlign: TextAlign.center,
-                        ),
+                        Text('NO ROLES DEFINED', style: AppTypography.caption),
                       ],
                     ),
                   )
-                : ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: _sessionTrainees.length,
-                    itemBuilder: (context, index) {
-                      final trainee = _sessionTrainees[index];
-                      final isSelected = selectedIds.contains(trainee['id']);
-                      return CheckboxListTile(
-                        title: Text(trainee['full_name'].toString().toUpperCase(), style: AppTypography.body),
-                        subtitle: trainee['email'] != null ? Text(trainee['email'], style: AppTypography.caption) : null,
-                        value: isSelected,
-                        activeColor: kAccent,
-                        checkColor: Colors.black,
-                        onChanged: (v) {
-                          setDialogState(() {
-                            if (v == true) {
-                              selectedIds.add(trainee['id']);
-                            } else {
-                              selectedIds.remove(trainee['id']);
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Select a role to automatically assign all relevant personnel in this session.',
+                        style: TextStyle(color: kForegroundMuted, fontSize: 12),
+                      ),
+                      const SizedBox(height: 16),
+                      Flexible(
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: _roles.length + 1,
+                          itemBuilder: (context, index) {
+                            if (index == 0) {
+                              return RadioListTile<String?>(
+                                title: const Text('MANUAL / ALL', style: AppTypography.body),
+                                value: null,
+                                groupValue: currentRoleId,
+                                activeColor: kAccent,
+                                onChanged: (v) => setDialogState(() => currentRoleId = v),
+                              );
                             }
-                          });
-                        },
-                      );
-                    },
+                            final role = _roles[index - 1];
+                            return RadioListTile<String?>(
+                              title: Text(role['name'].toString().toUpperCase(), style: AppTypography.body),
+                              value: role['id'],
+                              groupValue: currentRoleId,
+                              activeColor: kAccent,
+                              onChanged: (v) => setDialogState(() => currentRoleId = v),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ),
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
+              onPressed: () => Navigator.of(context).pop(null), // Close without changes
               child: const Text('CANCEL', style: TextStyle(color: kForegroundMuted)),
             ),
             TechnicalButton(
-              label: 'SAVE',
-              onTap: () => Navigator.of(context).pop(true),
+              label: 'APPLY',
+              onTap: () => Navigator.of(context).pop(currentRoleId ?? 'manual_cleared'),
             ),
           ],
         ),
       ),
     );
 
-    if (result == true) {
+    if (result != null) {
       try {
-        // Delete existing assignments for this activity
-        await supabase.from('activity_trainees').delete().eq('activity_id', activity['id']);
+        final String? newRoleId = result == 'manual_cleared' ? null : result;
         
-        // Insert new ones
-        if (selectedIds.isNotEmpty) {
-          await supabase.from('activity_trainees').insert(
-            selectedIds.map((tid) => {'activity_id': activity['id'], 'trainee_id': tid}).toList(),
-          );
+        // Update the activity record
+        final Map<String, dynamic> updateData = {
+          'target_role_id': newRoleId,
+        };
+
+        if (newRoleId != null) {
+          final role = _roles.firstWhere((r) => r['id'] == newRoleId);
+          updateData['target_role'] = role['name'];
+        } else {
+          updateData['target_role'] = null;
         }
+
+        await supabase.from('activities').update(updateData).eq('id', activity['id']);
+        
+        // If switching to a role, we might want to clear manual assignments?
+        // User said " सिंपली, assign that activity to a role itself"
+        if (newRoleId != null) {
+           await supabase.from('activity_trainees').delete().eq('activity_id', activity['id']);
+        }
+
         _fetchData();
       } catch (e) {
         if (mounted) {
@@ -216,12 +256,17 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
                   child: Column(
                     children: [
                       Expanded(
-                        child: ListView.builder(
-                          padding: const EdgeInsets.all(kPadding),
-                          itemCount: parentActivities.length,
-                          itemBuilder: (context, index) {
-                            return _buildActivityNode(parentActivities[index]);
-                          },
+                        child: RefreshIndicator(
+                          onRefresh: _fetchData,
+                          color: kAccent,
+                          backgroundColor: kSurfaceElevated,
+                          child: ListView.builder(
+                            padding: const EdgeInsets.all(kPadding),
+                            itemCount: parentActivities.length,
+                            itemBuilder: (context, index) {
+                              return _buildActivityNode(parentActivities[index]);
+                            },
+                          ),
                         ),
                       ),
                       Padding(
@@ -280,33 +325,12 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
                 children: [
                   if (isParent) ...[
                     _buildActionButton(
-                      icon: activity['target_role'] != null ? Icons.psychology : Icons.group_add_outlined,
-                      label: activity['target_role'] != null 
-                        ? '${activity['target_role'].toString().toUpperCase()}'
+                      icon: (activity['display_role'] != null || activity['target_role'] != null) ? Icons.psychology : Icons.group_add_outlined,
+                      label: (activity['display_role'] != null || activity['target_role'] != null)
+                        ? (activity['display_role'] ?? activity['target_role']).toString().toUpperCase()
                         : '${(activity['trainee_ids'] as List).length} ASSIGNED',
-                      onTap: activity['target_role'] != null 
-                        ? () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Auto-assigned to all ${activity['target_role']}s')),
-                            );
-                          }
-                        : () => _manageTrainees(activity),
+                      onTap: () => _showRoleAssignmentDialog(activity),
                     ),
-                    if (activity['target_role'] != null) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: kAccent.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: kAccent.withValues(alpha: 0.2)),
-                        ),
-                        child: Text(
-                          '${(activity['trainee_ids'] as List).length} ACTIVE',
-                          style: AppTypography.overline.copyWith(color: kAccent, fontSize: 8),
-                        ),
-                      ),
-                    ],
                     const SizedBox(width: 8),
                     _buildActionButton(
                       icon: Icons.add_circle_outline,
