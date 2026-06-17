@@ -61,7 +61,6 @@ class _LoginPageState extends State<LoginPage> {
         serverClientId: webClientId,
       );
 
-      // Force account selection by signing out first
       await googleSignIn.signOut();
 
       final googleUser = await googleSignIn.signIn();
@@ -83,7 +82,6 @@ class _LoginPageState extends State<LoginPage> {
         accessToken: accessToken,
       );
 
-      // Check if user has a profile
       if (res.user != null) {
         final profile = await Supabase.instance.client
             .from('user_accounts')
@@ -92,7 +90,6 @@ class _LoginPageState extends State<LoginPage> {
             .maybeSingle();
             
         if (profile == null && mounted) {
-          // If no profile, navigate to RegisterPage to complete profile
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
               builder: (context) => RegisterPage(
@@ -140,39 +137,31 @@ class _LoginPageState extends State<LoginPage> {
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+                padding: const EdgeInsets.symmetric(horizontal: kPaddingLarge, vertical: 32.0),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: kAccent.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
-                        border: Border.all(color: kAccent.withValues(alpha: 0.2)),
+                        border: Border.all(color: kAccent.withValues(alpha: 0.2), width: 2),
                       ),
-                      child: const Icon(Icons.hub_outlined, size: 48, color: kAccent),
+                      child: const Icon(Icons.security_outlined, size: 56, color: kAccent),
                     ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'LOGIN',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w900,
-                        color: kForeground,
-                        letterSpacing: 2.0,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 32),
                     Text(
-                      'AUTHENTICATE TO ACCESS THE ARENA',
+                      'COMMAND ACCESS',
                       textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: kForegroundMuted,
-                        fontWeight: FontWeight.w800,
-                      ),
+                      style: AppTypography.h1.copyWith(letterSpacing: 4),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'AUTHORIZED PERSONNEL ONLY',
+                      textAlign: TextAlign.center,
+                      style: AppTypography.overline.copyWith(color: kForegroundMuted),
                     ),
                     const SizedBox(height: 48),
                     AuthGlassCard(
@@ -182,14 +171,16 @@ class _LoginPageState extends State<LoginPage> {
                           AuthTextField(
                             controller: _emailController,
                             label: 'Access Email',
+                            hint: 'Enter your credentials...',
                             icon: Icons.alternate_email_rounded,
                             keyboardType: TextInputType.emailAddress,
                           ),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 24),
                           AuthTextField(
                             controller: _passwordController,
                             label: 'Security Key',
-                            icon: Icons.key_rounded,
+                            hint: 'Enter password...',
+                            icon: Icons.vpn_key_outlined,
                             obscureText: true,
                           ),
                           const SizedBox(height: 12),
@@ -198,13 +189,11 @@ class _LoginPageState extends State<LoginPage> {
                             child: TextButton(
                               onPressed: _navigateToForgotPassword,
                               style: TextButton.styleFrom(
-                                foregroundColor: kAccent.withValues(alpha: 0.6),
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
                                 minimumSize: Size.zero,
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
-                              child: Text('FORGOT CREDENTIALS?', 
-                                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              child: Text('RECOVER KEY?', 
+                                style: AppTypography.caption.copyWith(
                                   color: kAccent,
                                   fontWeight: FontWeight.w900,
                                 )),
@@ -212,21 +201,22 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           const SizedBox(height: 32),
                           AuthButton(
-                            label: 'Establish Session',
+                            label: 'Authenticate',
                             onPressed: _signIn,
                             isLoading: _isLoading,
+                            icon: Icons.login_outlined,
                           ),
                           const SizedBox(height: 32),
                           Row(
                             children: [
                               Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.05))),
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 20),
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
                                 child: Text(
-                                  'EXTERNAL AUTH',
-                                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                    color: kForeground.withValues(alpha: 0.2),
-                                    fontSize: 9,
+                                  'EXTERNAL SSO',
+                                  style: AppTypography.overline.copyWith(
+                                    color: kForegroundDisabled,
+                                    fontSize: 8,
                                   ),
                                 ),
                               ),
@@ -235,10 +225,12 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           const SizedBox(height: 32),
                           TechnicalButton(
-                            label: 'Sign in with Google',
-                            color: Colors.white,
-                            onTap: _isLoading ? () {} : _signInWithGoogle,
+                            label: 'Google Federation',
+                            color: kSurfaceElevated,
+                            textColor: kForeground,
+                            onTap: _isLoading ? null : _signInWithGoogle,
                             icon: Icons.g_mobiledata_rounded,
+                            isSecondary: true,
                           ),
                         ],
                       ),
@@ -248,18 +240,18 @@ class _LoginPageState extends State<LoginPage> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          "New to the platform?",
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: kForegroundMuted,
-                          ),
+                          "New personnel?",
+                          style: AppTypography.caption,
                         ),
                         TextButton(
                           onPressed: _navigateToRegister,
-                          style: TextButton.styleFrom(
-                            foregroundColor: kAccent,
-                            textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
+                          child: Text(
+                            'INITIALIZE ACCOUNT',
+                            style: AppTypography.caption.copyWith(
+                              color: kAccent,
+                              fontWeight: FontWeight.w900,
+                            ),
                           ),
-                          child: const Text('CREATE ACCOUNT'),
                         ),
                       ],
                     ),
@@ -273,3 +265,4 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
+

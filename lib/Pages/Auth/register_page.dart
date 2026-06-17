@@ -129,7 +129,7 @@ class _RegisterPageState extends State<RegisterPage> {
               ),
               const SizedBox(height: 24),
               const Text(
-                'Account Created!',
+                'You are registered!',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white,
@@ -139,7 +139,7 @@ class _RegisterPageState extends State<RegisterPage> {
               ),
               const SizedBox(height: 12),
               Text(
-                'Welcome to QCU Robotics. Your technical profile has been successfully initialized.',
+                'Welcome! Your profile is ready.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.4),
@@ -149,7 +149,7 @@ class _RegisterPageState extends State<RegisterPage> {
               ),
               const SizedBox(height: 32),
               TechnicalButton(
-                label: 'Continue to Dashboard',
+                label: 'Go to Dashboard',
                 onTap: () {
                   Navigator.of(dialogContext).pop();
                   Navigator.of(context).pushAndRemoveUntil(
@@ -335,7 +335,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
-                        widget.isGoogleSignUp ? 'Complete Profile' : 'Register',
+                        widget.isGoogleSignUp ? 'Finish Profile' : 'Sign Up',
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           fontSize: 24,
@@ -347,8 +347,8 @@ class _RegisterPageState extends State<RegisterPage> {
                       const SizedBox(height: 8),
                       Text(
                         widget.isGoogleSignUp 
-                          ? 'Setup your profile' 
-                          : 'Create an account',
+                          ? 'Please add your info' 
+                          : 'Create a new account',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 12,
@@ -404,7 +404,8 @@ class _RegisterPageState extends State<RegisterPage> {
                           children: [
                             AuthTextField(
                               controller: _emailController,
-                              label: 'Email',
+                              label: 'Access Email',
+                              hint: 'Enter your email address',
                               icon: Icons.email_outlined,
                               keyboardType: TextInputType.emailAddress,
                               enabled: !widget.isGoogleSignUp,
@@ -413,12 +414,14 @@ class _RegisterPageState extends State<RegisterPage> {
                             AuthTextField(
                               controller: _nameController,
                               label: 'Full Name',
+                              hint: 'Enter your full name',
                               icon: Icons.badge_outlined,
                             ),
                             const SizedBox(height: 16),
                             AuthTextField(
                               controller: _passwordController,
-                              label: 'Password',
+                              label: 'Your Password',
+                              hint: 'Choose a strong password',
                               icon: Icons.lock_outline,
                               obscureText: true,
                             ),
@@ -426,24 +429,25 @@ class _RegisterPageState extends State<RegisterPage> {
                             
                             Row(
                               children: [
-                                const Text('SECURITY CRITERIA', 
-                                  style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+                                Text('PASSWORD RULES', 
+                                  style: AppTypography.overline.copyWith(color: kForegroundDisabled)),
                                 const SizedBox(width: 8),
                                 Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.05))),
                               ],
                             ),
                             const SizedBox(height: 12),
                             
-                            _PasswordRequirement(label: '8+ Characters (Minimum length)', isValid: _hasMinLength),
-                            _PasswordRequirement(label: 'At least 1 Uppercase letter (A-Z)', isValid: _hasUppercase),
-                            _PasswordRequirement(label: 'At least 1 Numeric digit (0-9)', isValid: _hasNumber),
-                            _PasswordRequirement(label: '1 Special Character (@, #, !, etc.)', isValid: _hasSpecialChar),
+                            _PasswordRequirement(label: '8 or more letters', isValid: _hasMinLength),
+                            _PasswordRequirement(label: 'At least 1 BIG letter (A-Z)', isValid: _hasUppercase),
+                            _PasswordRequirement(label: 'At least 1 number (0-9)', isValid: _hasNumber),
+                            _PasswordRequirement(label: '1 special mark (@, #, !, etc.)', isValid: _hasSpecialChar),
                             
                             const SizedBox(height: 16),
                             
                             AuthTextField(
                               controller: _confirmPasswordController,
                               label: 'Confirm Password',
+                              hint: 'Repeat your password',
                               icon: Icons.lock_reset_outlined,
                               obscureText: true,
                             ),
@@ -453,7 +457,7 @@ class _RegisterPageState extends State<RegisterPage> {
                             
                             const SizedBox(height: 24),
                             
-                            const Text('Role', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w700)),
+                            const Text('Job / Position', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w700)),
                             const SizedBox(height: 8),
                             
                             Container(
@@ -488,7 +492,7 @@ class _RegisterPageState extends State<RegisterPage> {
                             ),
                             const SizedBox(height: 32),
                             AuthButton(
-                              label: widget.isGoogleSignUp ? 'Complete Profile' : 'Create Account',
+                              label: widget.isGoogleSignUp ? 'Save Profile' : 'Create Account',
                               onPressed: _register,
                               isLoading: _isRegistering,
                             ),
@@ -514,7 +518,7 @@ class _RegisterPageState extends State<RegisterPage> {
                                 foregroundColor: kAccent,
                                 textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
                               ),
-                              child: const Text('Login'),
+                              child: const Text('Log In'),
                             ),
                           ],
                         ),

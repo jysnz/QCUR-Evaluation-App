@@ -1,0 +1,148 @@
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:qcur_evaluation/Widgets/design_system.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+
+class AccountPage extends StatefulWidget {
+  const AccountPage({super.key});
+
+  @override
+  State<AccountPage> createState() => _AccountPageState();
+}
+
+class _AccountPageState extends State<AccountPage> {
+  final supabase = Supabase.instance.client;
+  Map<String, dynamic>? _userData;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserData();
+  }
+
+  Future<void> _fetchUserData() async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user != null) {
+        final data = await supabase
+            .from('user_accounts')
+            .select()
+            .eq('id', user.id)
+            .single();
+        setState(() {
+          _userData = data;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading account: $e')),
+        );
+      }
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _signOut() async {
+    try {
+      await GoogleSignIn().signOut();
+      await supabase.auth.signOut();
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error signing out: $e')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: kBackground,
+        title: const Text('MY ACCOUNT', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 2)),
+      ),
+      body: Stack(
+        children: [
+          const TechnicalGridBackground(),
+          _isLoading
+              ? const Center(child: CircularProgressIndicator(color: kAccent))
+              : SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(kPadding),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Center(
+                          child: CircleAvatar(
+                            radius: 60,
+                            backgroundColor: kSurface,
+                            backgroundImage: _userData?['avatar_url'] != null
+                                ? NetworkImage(_userData!['avatar_url'])
+                                : null,
+                            child: _userData?['avatar_url'] == null
+                                ? const Icon(Icons.person, size: 60, color: kForegroundMuted)
+                                : null,
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        TechnicalCard(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildInfoRow('NAME', _userData?['full_name'] ?? 'Not set'),
+                              const Divider(height: 32, color: Colors.white10),
+                              _buildInfoRow('ACCESS EMAIL', _userData?['email'] ?? 'Not set'),
+                              const Divider(height: 32, color: Colors.white10),
+                              _buildInfoRow('ROLE', _userData?['position'] ?? 'Not set'),
+                            ],
+                          ),
+                        ),
+                        const Spacer(),
+                        TechnicalButton(
+                          label: 'LOGOUT',
+                          color: Colors.redAccent,
+                          onTap: _signOut,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: kForegroundMuted,
+            fontSize: 10,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            color: kForeground,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+}

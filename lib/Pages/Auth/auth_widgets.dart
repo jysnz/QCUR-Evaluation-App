@@ -12,20 +12,18 @@ class AuthBackground extends StatelessWidget {
 
 class AuthGlassCard extends StatelessWidget {
   final Widget child;
-  final EdgeInsetsGeometry padding;
-  final double radius;
+  final EdgeInsetsGeometry? padding;
 
   const AuthGlassCard({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(24),
-    this.radius = kRadius,
+    this.padding,
   });
 
   @override
   Widget build(BuildContext context) {
     return TechnicalCard(
-      padding: padding,
+      padding: padding ?? const EdgeInsets.all(kPaddingLarge),
       child: child,
     );
   }
@@ -34,6 +32,7 @@ class AuthGlassCard extends StatelessWidget {
 class AuthTextField extends StatelessWidget {
   final TextEditingController controller;
   final String label;
+  final String hint;
   final IconData icon;
   final bool obscureText;
   final TextInputType keyboardType;
@@ -43,6 +42,7 @@ class AuthTextField extends StatelessWidget {
     super.key,
     required this.controller,
     required this.label,
+    required this.hint,
     required this.icon,
     this.obscureText = false,
     this.keyboardType = TextInputType.text,
@@ -51,38 +51,42 @@ class AuthTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      enabled: enabled,
-      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-        color: enabled ? kForeground : kForegroundMuted,
-        fontWeight: FontWeight.w600,
-      ),
-      decoration: InputDecoration(
-        labelText: label.toUpperCase(),
-        labelStyle: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: kForegroundMuted,
-          letterSpacing: 1.0,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label.toUpperCase(), style: AppTypography.overline),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          obscureText: obscureText,
+          keyboardType: keyboardType,
+          enabled: enabled,
+          style: AppTypography.bodyLg.copyWith(
+            color: enabled ? kForeground : kForegroundDisabled,
+            fontWeight: FontWeight.bold,
+          ),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(color: kForeground.withValues(alpha: 0.2)),
+            prefixIcon: Icon(icon, color: kAccent, size: 20),
+            filled: true,
+            fillColor: kSurfaceElevated,
+            contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(kRadiusSmall),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(kRadiusSmall),
+              borderSide: const BorderSide(color: Colors.white10),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(kRadiusSmall),
+              borderSide: const BorderSide(color: kAccent, width: 1.5),
+            ),
+          ),
         ),
-        prefixIcon: Icon(icon, color: kAccent.withValues(alpha: 0.7), size: 20),
-        filled: true,
-        fillColor: kBackground.withValues(alpha: 0.5),
-        contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(kRadius),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(kRadius),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(kRadius),
-          borderSide: const BorderSide(color: kAccent, width: 1.5),
-        ),
-      ),
+      ],
     );
   }
 }
@@ -92,6 +96,7 @@ class AuthButton extends StatelessWidget {
   final VoidCallback onPressed;
   final bool isLoading;
   final Color color;
+  final IconData? icon;
 
   const AuthButton({
     super.key,
@@ -99,6 +104,7 @@ class AuthButton extends StatelessWidget {
     required this.onPressed,
     this.isLoading = false,
     this.color = kAccent,
+    this.icon,
   });
 
   @override
@@ -108,6 +114,8 @@ class AuthButton extends StatelessWidget {
       onTap: onPressed,
       isLoading: isLoading,
       color: color,
+      icon: icon,
     );
   }
 }
+

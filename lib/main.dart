@@ -3,6 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qcur_evaluation/Pages/Auth/login_page.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/dashboard_page.dart';
+import 'package:qcur_evaluation/Pages/Auth/register_page.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 
 Future<void> main() async {
@@ -49,28 +50,87 @@ class AuthRouter extends StatefulWidget {
 }
 
 class _AuthRouterState extends State<AuthRouter> {
+  bool _checkingProfile = false;
+  bool _hasProfile = false;
+  Session? _session;
+
   @override
   void initState() {
     super.initState();
+    _session = Supabase.instance.client.auth.currentSession;
+    if (_session != null) {
+      _checkProfile();
+    }
     _setupAuthListener();
   }
 
   void _setupAuthListener() {
     Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       if (mounted) {
-        setState(() {});
+        setState(() {
+          _session = data.session;
+        });
+        if (_session != null) {
+          _checkProfile();
+        } else {
+          setState(() {
+            _hasProfile = false;
+            _checkingProfile = false;
+          });
+        }
       }
     });
   }
 
+  Future<void> _checkProfile() async {
+    if (_session == null) return;
+    
+    setState(() => _checkingProfile = true);
+    try {
+      final profile = await Supabase.instance.client
+          .from('user_accounts')
+          .select()
+          .eq('id', _session!.user.id)
+          .maybeSingle();
+      
+      if (mounted) {
+        setState(() {
+          _hasProfile = profile != null;
+          _checkingProfile = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _checkingProfile = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final session = Supabase.instance.client.auth.currentSession;
-
-    if (session != null) {
-      return const DashboardPage();
-    } else {
+    if (_session == null) {
       return const LoginPage();
     }
+
+    if (_checkingProfile) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(color: kAccent),
+        ),
+      );
+    }
+
+    if (!_hasProfile) {
+      final user = _session!.user;
+      return RegisterPage(
+        isGoogleSignUp: true,
+        initialEmail: user.email,
+        initialName: user.userMetadata?['full_name'],
+        initialImageUrl: user.userMetadata?['avatar_url'],
+        onProfileComplete: () => _checkProfile(),
+      );
+    }
+
+    return const DashboardPage();
   }
 }

@@ -44,7 +44,7 @@ class WelcomePage extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Your account is ready. You can now access the QCU Robotics management dashboard.',
+                      'Your account is ready. You can now start using the app.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.4),

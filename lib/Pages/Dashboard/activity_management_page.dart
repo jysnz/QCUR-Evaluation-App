@@ -1,25 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
+import 'package:qcur_evaluation/Pages/Dashboard/create_activity_page.dart';
 
-class ActivityManagementPage extends StatefulWidget {
+class ActivityManagementView extends StatefulWidget {
   final String sessionId;
   final String sessionName;
 
-  const ActivityManagementPage({
+  const ActivityManagementView({
     super.key,
     required this.sessionId,
     required this.sessionName,
   });
 
   @override
-  State<ActivityManagementPage> createState() => _ActivityManagementPageState();
+  State<ActivityManagementView> createState() => _ActivityManagementViewState();
 }
 
-class _ActivityManagementPageState extends State<ActivityManagementPage> {
+class _ActivityManagementViewState extends State<ActivityManagementView> {
   final supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _activities = [];
-  List<Map<String, dynamic>> _trainees = [];
+  List<Map<String, dynamic>> _sessionTrainees = [];
   bool _isLoading = true;
 
   @override
@@ -38,27 +39,41 @@ class _ActivityManagementPageState extends State<ActivityManagementPage> {
           .eq('session_id', widget.sessionId)
           .order('order_index');
 
-      // Fetch trainees (available to assign)
-      final traineesData = await supabase
-          .from('trainees')
-          .select()
-          .order('full_name');
+      // Fetch ONLY trainees assigned to this session
+      final sessionMembersData = await supabase
+          .from('session_trainees')
+          .select('trainee_id, trainees!inner(*)')
+          .eq('session_id', widget.sessionId);
 
-      // Fetch assignments
+      final traineesList = sessionMembersData.map((m) => m['trainees'] as Map<String, dynamic>).toList();
+
+      // Fetch activity assignments
       final assignmentsData = await supabase
           .from('activity_trainees')
           .select('activity_id, trainee_id');
 
       setState(() {
         _activities = List<Map<String, dynamic>>.from(activitiesData);
-        _trainees = List<Map<String, dynamic>>.from(traineesData);
+        _sessionTrainees = traineesList;
         
         // Map assignments to activities
         for (var activity in _activities) {
-          activity['trainee_ids'] = assignmentsData
-              .where((a) => a['activity_id'] == activity['id'])
-              .map((a) => a['trainee_id'])
-              .toList();
+          if (activity['target_role'] != null) {
+            // Role-based assignment: find trainees in this session with the matching role
+            activity['trainee_ids'] = _sessionTrainees
+                .where((t) {
+                  final List<dynamic> traineeRoles = t['role'] ?? [];
+                  return traineeRoles.contains(activity['target_role']);
+                })
+                .map((t) => t['id'])
+                .toList();
+          } else {
+            // Manual assignment
+            activity['trainee_ids'] = assignmentsData
+                .where((a) => a['activity_id'] == activity['id'])
+                .map((a) => a['trainee_id'])
+                .toList();
+          }
         }
         
         _isLoading = false;
@@ -73,96 +88,19 @@ class _ActivityManagementPageState extends State<ActivityManagementPage> {
     }
   }
 
-  Future<void> _addActivity({String? parentId}) async {
-    final nameController = TextEditingController();
-    bool isGraded = false;
-    String scoringDirection = 'higher_is_better';
-
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: kSurface,
-          title: Text(parentId == null ? 'ADD ACTIVITY' : 'ADD SUB-ACTIVITY', 
-              style: const TextStyle(color: kAccent, fontWeight: FontWeight.w900, fontSize: 16)),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildDialogLabel('NAME'),
-                TextField(
-                  controller: nameController,
-                  style: const TextStyle(color: kForeground),
-                  decoration: _dialogInputDecoration('Activity name...'),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    const Text('GRADED', style: TextStyle(color: kForegroundMuted, fontWeight: FontWeight.bold, fontSize: 12)),
-                    const Spacer(),
-                    Switch(
-                      value: isGraded,
-                      onChanged: (v) => setDialogState(() => isGraded = v),
-                      activeThumbColor: kAccent,
-                    ),
-                  ],
-                ),
-                if (isGraded) ...[
-                  const SizedBox(height: 16),
-                  _buildDialogLabel('SCORING DIRECTION'),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: DropdownButton<String>(
-                      value: scoringDirection,
-                      isExpanded: true,
-                      underline: const SizedBox(),
-                      dropdownColor: kSurface,
-                      items: const [
-                        DropdownMenuItem(value: 'higher_is_better', child: Text('HIGHER IS BETTER (%)')),
-                        DropdownMenuItem(value: 'lower_is_better', child: Text('LOWER IS BETTER (TIME/ERRORS)')),
-                      ],
-                      onChanged: (v) => setDialogState(() => scoringDirection = v!),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('CANCEL', style: TextStyle(color: kForegroundMuted)),
-            ),
-            TechnicalButton(
-              label: 'ADD',
-              onTap: () => Navigator.of(context).pop(true),
-            ),
-          ],
+  void _navigateToCreateActivity({String? parentId, String? parentName}) async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => CreateActivityPage(
+          sessionId: widget.sessionId,
+          parentId: parentId,
+          parentName: parentName,
         ),
       ),
     );
 
-    if (result == true && nameController.text.isNotEmpty) {
-      try {
-        await supabase.from('activities').insert({
-          'session_id': widget.sessionId,
-          'parent_id': parentId,
-          'name': nameController.text.trim(),
-          'is_graded': isGraded,
-          'scoring_direction': isGraded ? scoringDirection : null,
-          'order_index': _activities.where((a) => a['parent_id'] == parentId).length,
-        });
-        _fetchData();
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-        }
-      }
+    if (result == true) {
+      _fetchData();
     }
   }
 
@@ -174,21 +112,34 @@ class _ActivityManagementPageState extends State<ActivityManagementPage> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: kSurface,
-          title: const Text('ASSIGN TRAINEES', 
-              style: TextStyle(color: kAccent, fontWeight: FontWeight.w900, fontSize: 16)),
+          surfaceTintColor: Colors.transparent,
+          title: Text('ASSIGN PERSONNEL', style: AppTypography.h3.copyWith(color: kAccent)),
           content: SizedBox(
             width: double.maxFinite,
-            child: _trainees.isEmpty
-                ? const Center(child: Text('No trainees available. Add them in settings.', style: TextStyle(color: kForegroundMuted)))
+            child: _sessionTrainees.isEmpty
+                ? const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.people_outline, color: kForegroundDisabled, size: 40),
+                        SizedBox(height: 16),
+                        Text('NO SESSION MEMBERS', style: AppTypography.caption),
+                        Text('Add members in the Members tab first.', 
+                          style: TextStyle(color: kForegroundDisabled, fontSize: 10),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  )
                 : ListView.builder(
                     shrinkWrap: true,
-                    itemCount: _trainees.length,
+                    itemCount: _sessionTrainees.length,
                     itemBuilder: (context, index) {
-                      final trainee = _trainees[index];
+                      final trainee = _sessionTrainees[index];
                       final isSelected = selectedIds.contains(trainee['id']);
                       return CheckboxListTile(
-                        title: Text(trainee['full_name'], style: const TextStyle(color: kForeground)),
-                        subtitle: trainee['email'] != null ? Text(trainee['email'], style: const TextStyle(color: kForegroundMuted, fontSize: 12)) : null,
+                        title: Text(trainee['full_name'].toString().toUpperCase(), style: AppTypography.body),
+                        subtitle: trainee['email'] != null ? Text(trainee['email'], style: AppTypography.caption) : null,
                         value: isSelected,
                         activeColor: kAccent,
                         checkColor: Colors.black,
@@ -244,13 +195,15 @@ class _ActivityManagementPageState extends State<ActivityManagementPage> {
     final parentActivities = _activities.where((a) => a['parent_id'] == null).toList();
 
     return Scaffold(
+      backgroundColor: Colors.transparent, // Inherit from SessionDetailsPage
       appBar: AppBar(
-        backgroundColor: kBackground,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('MANAGE SESSION', style: TextStyle(color: kAccent.withValues(alpha: 0.7), fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.w900)),
-            Text(widget.sessionName.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+            Text('ACTIVITY MANAGER', style: AppTypography.overline.copyWith(color: kForegroundMuted)),
+            Text(widget.sessionName.toUpperCase(), style: AppTypography.h3),
           ],
         ),
       ),
@@ -275,8 +228,8 @@ class _ActivityManagementPageState extends State<ActivityManagementPage> {
                         padding: const EdgeInsets.all(kPadding),
                         child: TechnicalButton(
                           label: 'Add Root Activity',
-                          icon: Icons.add_task,
-                          onTap: () => _addActivity(),
+                          icon: Icons.add_circle_outline,
+                          onTap: () => _navigateToCreateActivity(),
                         ),
                       ),
                     ],
@@ -306,56 +259,86 @@ class _ActivityManagementPageState extends State<ActivityManagementPage> {
                       children: [
                         Text(
                           isParent ? 'PARENT ACTIVITY' : 'SUB-ACTIVITY',
-                          style: TextStyle(
-                            color: isParent ? kAccent : Colors.blue,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1,
+                          style: AppTypography.overline.copyWith(
+                            color: isParent ? kAccent : kInfo,
                           ),
                         ),
+                        const SizedBox(height: 4),
                         Text(
                           activity['name'].toString().toUpperCase(),
-                          style: const TextStyle(color: kForeground, fontWeight: FontWeight.bold, fontSize: 16),
+                          style: AppTypography.h3,
                         ),
                       ],
                     ),
                   ),
                   if (activity['is_graded'] == true)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: kAccent.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: kAccent.withValues(alpha: 0.3)),
-                      ),
-                      child: const Text('GRADED', style: TextStyle(color: kAccent, fontSize: 8, fontWeight: FontWeight.w900)),
-                    ),
+                    const AppStatusBadge(label: 'GRADED', color: kAccent),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               Row(
                 children: [
                   if (isParent) ...[
                     _buildActionButton(
-                      icon: Icons.group_add_outlined,
-                      label: '${(activity['trainee_ids'] as List).length} TRAINEES',
-                      onTap: () => _manageTrainees(activity),
+                      icon: activity['target_role'] != null ? Icons.psychology : Icons.group_add_outlined,
+                      label: activity['target_role'] != null 
+                        ? '${activity['target_role'].toString().toUpperCase()}'
+                        : '${(activity['trainee_ids'] as List).length} ASSIGNED',
+                      onTap: activity['target_role'] != null 
+                        ? () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Auto-assigned to all ${activity['target_role']}s')),
+                            );
+                          }
+                        : () => _manageTrainees(activity),
                     ),
+                    if (activity['target_role'] != null) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: kAccent.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: kAccent.withValues(alpha: 0.2)),
+                        ),
+                        child: Text(
+                          '${(activity['trainee_ids'] as List).length} ACTIVE',
+                          style: AppTypography.overline.copyWith(color: kAccent, fontSize: 8),
+                        ),
+                      ),
+                    ],
                     const SizedBox(width: 8),
                     _buildActionButton(
                       icon: Icons.add_circle_outline,
                       label: 'SUB',
-                      onTap: () => _addActivity(parentId: activity['id']),
+                      onTap: () => _navigateToCreateActivity(
+                        parentId: activity['id'],
+                        parentName: activity['name'],
+                      ),
                     ),
                   ] else ...[
-                     const Text('INHERITS TRAINEES FROM PARENT', style: TextStyle(color: kForegroundMuted, fontSize: 10, fontStyle: FontStyle.italic)),
+                     const Text('GETS TRAINEES FROM PARENT', style: TextStyle(color: kForegroundMuted, fontSize: 10, fontStyle: FontStyle.italic)),
                   ],
                   const Spacer(),
                   IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
+                    icon: const Icon(Icons.delete_outline, color: kError, size: 20),
                     onPressed: () async {
-                      await supabase.from('activities').delete().eq('id', activity['id']);
-                      _fetchData();
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          backgroundColor: kSurface,
+                          title: const Text('DELETE ACTIVITY?', style: AppTypography.h3),
+                          content: const Text('This will remove the activity and all its sub-activities.', style: AppTypography.body),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('CANCEL')),
+                            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('DELETE', style: TextStyle(color: kError))),
+                          ],
+                        ),
+                      );
+                      if (confirm == true) {
+                        await supabase.from('activities').delete().eq('id', activity['id']);
+                        _fetchData();
+                      }
                     },
                   ),
                 ],
@@ -365,7 +348,7 @@ class _ActivityManagementPageState extends State<ActivityManagementPage> {
         ),
         if (subActivities.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.only(left: 24.0, top: 8, bottom: 8),
+            padding: const EdgeInsets.only(left: 24.0, top: 12, bottom: 4),
             child: Column(
               children: subActivities.map((s) => _buildActivityNode(s)).toList(),
             ),
@@ -379,43 +362,23 @@ class _ActivityManagementPageState extends State<ActivityManagementPage> {
     return InkWell(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: Colors.white10),
+          color: kSurfaceElevated,
+          borderRadius: BorderRadius.circular(kRadiusSmall),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, size: 14, color: kAccent),
-            const SizedBox(width: 4),
-            Text(label, style: const TextStyle(color: kForeground, fontSize: 10, fontWeight: FontWeight.w900)),
+            const SizedBox(width: 6),
+            Text(label, style: AppTypography.overline.copyWith(color: kForeground)),
           ],
         ),
       ),
     );
   }
-
-  Widget _buildDialogLabel(String label) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6.0, left: 2),
-      child: Text(
-        label,
-        style: const TextStyle(color: kForegroundMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1),
-      ),
-    );
-  }
-
-  InputDecoration _dialogInputDecoration(String hint) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.2)),
-      filled: true,
-      fillColor: Colors.white.withValues(alpha: 0.05),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white10)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: kAccent, width: 1)),
-    );
-  }
 }
+
+

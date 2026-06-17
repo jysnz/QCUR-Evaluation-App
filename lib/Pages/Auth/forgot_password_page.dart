@@ -39,7 +39,7 @@ class ForgotPasswordPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 32),
                     const Text(
-                      'UNDER CONSTRUCTION',
+                      'COMING SOON',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 24,
@@ -50,7 +50,7 @@ class ForgotPasswordPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'The Forgot Password feature is currently being developed. Please check back later or contact support if you need immediate assistance.',
+                      'This feature is not ready yet. Please try again later.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 14,
@@ -64,7 +64,7 @@ class ForgotPasswordPage extends StatelessWidget {
                       child: Column(
                         children: [
                           const Text(
-                            'Estimated Completion',
+                            'Status',
                             style: TextStyle(
                               color: kAccent,
                               fontSize: 11,
@@ -74,7 +74,7 @@ class ForgotPasswordPage extends StatelessWidget {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Coming Soon',
+                            'Working on it',
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.8),
                               fontSize: 16,
@@ -86,7 +86,7 @@ class ForgotPasswordPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 32),
                     TechnicalButton(
-                      label: 'Back to Login',
+                      label: 'Back to Log In',
                       onTap: () => Navigator.of(context).pop(),
                     ),
                   ],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:qcur_evaluation/Pages/Dashboard/session_details_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/activity_management_page.dart';
@@ -30,7 +31,7 @@ class _CreateSessionPageState extends State<CreateSessionPage> {
               primary: kAccent,
               onPrimary: Colors.black,
               surface: kSurface,
-              onSurface: Colors.white,
+              onSurface: kForeground,
             ),
           ),
           child: child!,
@@ -65,10 +66,9 @@ class _CreateSessionPageState extends State<CreateSessionPage> {
       }).select().single();
 
       if (mounted) {
-        // Navigate to Activity Management
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (context) => ActivityManagementPage(
+            builder: (context) => SessionDetailsPage(
               sessionId: data['id'],
               sessionName: data['name'],
             ),
@@ -91,7 +91,7 @@ class _CreateSessionPageState extends State<CreateSessionPage> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: kBackground,
-        title: const Text('NEW SESSION', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 2)),
+        title: Text('NEW SESSION', style: AppTypography.h3.copyWith(letterSpacing: 2)),
         leading: IconButton(
           icon: const Icon(Icons.close, color: kForegroundMuted),
           onPressed: () => Navigator.of(context).pop(),
@@ -106,35 +106,30 @@ class _CreateSessionPageState extends State<CreateSessionPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 TechnicalCard(
-                  padding: const EdgeInsets.all(24),
+                  padding: const EdgeInsets.all(kPaddingLarge),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'SESSION DETAILS',
-                        style: TextStyle(
-                          color: kAccent,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 12,
-                          letterSpacing: 2,
-                        ),
+                      const SectionHeader(
+                        title: 'Session Details',
+                        subtitle: 'Plan a new training or evaluation session',
                       ),
-                      const SizedBox(height: 24),
-                      _buildLabel('SESSION NAME'),
-                      TextField(
+                      const SizedBox(height: 32),
+                      AppTextField(
+                        label: 'Session Name',
+                        hint: 'e.g., Q2 Tactical Training...',
                         controller: _nameController,
-                        style: const TextStyle(color: kForeground, fontWeight: FontWeight.bold),
-                        decoration: _inputDecoration('Enter session name...'),
                       ),
                       const SizedBox(height: 24),
-                      _buildLabel('DATE'),
+                      Text('DATE', style: AppTypography.overline),
+                      const SizedBox(height: 8),
                       InkWell(
                         onTap: () => _selectDate(context),
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.05),
-                            borderRadius: BorderRadius.circular(kRadius),
+                            color: kSurfaceElevated,
+                            borderRadius: BorderRadius.circular(kRadiusSmall),
                             border: Border.all(color: Colors.white10),
                           ),
                           child: Row(
@@ -142,7 +137,7 @@ class _CreateSessionPageState extends State<CreateSessionPage> {
                             children: [
                               Text(
                                 DateFormat('MMMM dd, yyyy').format(_selectedDate),
-                                style: const TextStyle(color: kForeground, fontWeight: FontWeight.bold),
+                                style: AppTypography.bodyLg.copyWith(fontWeight: FontWeight.bold),
                               ),
                               const Icon(Icons.calendar_today, color: kAccent, size: 20),
                             ],
@@ -154,9 +149,10 @@ class _CreateSessionPageState extends State<CreateSessionPage> {
                 ),
                 const Spacer(),
                 TechnicalButton(
-                  label: 'Initialize Session',
+                  label: 'Create Session',
                   onTap: _createSession,
                   isLoading: _isLoading,
+                  icon: Icons.rocket_launch_outlined,
                 ),
               ],
             ),
@@ -165,40 +161,5 @@ class _CreateSessionPageState extends State<CreateSessionPage> {
       ),
     );
   }
-
-  Widget _buildLabel(String label) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0, left: 4),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: kForegroundMuted,
-          fontSize: 10,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 1,
-        ),
-      ),
-    );
-  }
-
-  InputDecoration _inputDecoration(String hint) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.2)),
-      filled: true,
-      fillColor: Colors.white.withValues(alpha: 0.05),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(kRadius),
-        borderSide: BorderSide.none,
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(kRadius),
-        borderSide: const BorderSide(color: Colors.white10),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(kRadius),
-        borderSide: const BorderSide(color: kAccent, width: 1),
-      ),
-    );
-  }
 }
+
