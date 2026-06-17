@@ -66,56 +66,54 @@ class _AccountPageState extends State<AccountPage> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: kBackground,
-        title: const Text('MY ACCOUNT', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 2)),
+        title: const Text('Account', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
       ),
-      body: Stack(
-        children: [
-          const TechnicalGridBackground(),
-          _isLoading
-              ? const Center(child: CircularProgressIndicator(color: kAccent))
-              : SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.all(kPadding),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Center(
-                          child: CircleAvatar(
-                            radius: 60,
-                            backgroundColor: kSurface,
-                            backgroundImage: _userData?['avatar_url'] != null
-                                ? NetworkImage(_userData!['avatar_url'])
-                                : null,
-                            child: _userData?['avatar_url'] == null
-                                ? const Icon(Icons.person, size: 60, color: kForegroundMuted)
-                                : null,
-                          ),
+      body: AppBackground(
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator(color: kAccent))
+            : SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.all(kPadding),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Center(
+                        child: CircleAvatar(
+                          radius: 60,
+                          backgroundColor: kSurface,
+                          backgroundImage: _userData?['avatar_url'] != null
+                              ? NetworkImage(_userData!['avatar_url'])
+                              : null,
+                          child: _userData?['avatar_url'] == null
+                              ? const Icon(Icons.person_outline_rounded, size: 60, color: kForegroundMuted)
+                              : null,
                         ),
-                        const SizedBox(height: 32),
-                        TechnicalCard(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildInfoRow('NAME', _userData?['full_name'] ?? 'Not set'),
-                              const Divider(height: 32, color: Colors.white10),
-                              _buildInfoRow('ACCESS EMAIL', _userData?['email'] ?? 'Not set'),
-                              const Divider(height: 32, color: Colors.white10),
-                              _buildInfoRow('ROLE', _userData?['position'] ?? 'Not set'),
-                            ],
-                          ),
+                      ),
+                      const SizedBox(height: 32),
+                      AppCard(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildInfoRow('Name', _userData?['full_name'] ?? 'Not set'),
+                            const Divider(height: 32, color: kBorder),
+                            _buildInfoRow('Email', _userData?['email'] ?? 'Not set'),
+                            const Divider(height: 32, color: kBorder),
+                            _buildInfoRow('Position', _userData?['position'] ?? 'Not set'),
+                          ],
                         ),
-                        const Spacer(),
-                        TechnicalButton(
-                          label: 'LOGOUT',
-                          color: Colors.redAccent,
-                          onTap: _signOut,
-                        ),
-                      ],
-                    ),
+                      ),
+                      const Spacer(),
+                      AppButton(
+                        label: 'Sign Out',
+                        color: kError,
+                        icon: Icons.logout_rounded,
+                        onTap: _signOut,
+                      ),
+                    ],
                   ),
                 ),
-        ],
+              ),
       ),
     );
   }
@@ -126,21 +124,12 @@ class _AccountPageState extends State<AccountPage> {
       children: [
         Text(
           label,
-          style: const TextStyle(
-            color: kForegroundMuted,
-            fontSize: 10,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1,
-          ),
+          style: AppTypography.label,
         ),
         const SizedBox(height: 4),
         Text(
           value,
-          style: const TextStyle(
-            color: kForeground,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
+          style: AppTypography.bodyLg.copyWith(fontWeight: FontWeight.bold),
         ),
       ],
     );

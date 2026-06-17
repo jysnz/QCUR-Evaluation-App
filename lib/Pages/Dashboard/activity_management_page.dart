@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/create_activity_page.dart';
+import 'package:qcur_evaluation/Pages/Dashboard/score_trainees_page.dart';
 
 class ActivityManagementView extends StatefulWidget {
   final String sessionId;
@@ -188,7 +189,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
               onPressed: () => Navigator.of(context).pop(null), // Close without changes
               child: const Text('CANCEL', style: TextStyle(color: kForegroundMuted)),
             ),
-            TechnicalButton(
+            AppButton(
               label: 'APPLY',
               onTap: () => Navigator.of(context).pop(currentRoleId ?? 'manual_cleared'),
             ),
@@ -271,7 +272,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
                       ),
                       Padding(
                         padding: const EdgeInsets.all(kPadding),
-                        child: TechnicalButton(
+                        child: AppButton(
                           label: 'Add Root Activity',
                           icon: Icons.add_circle_outline,
                           onTap: () => _navigateToCreateActivity(),
@@ -291,7 +292,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
 
     return Column(
       children: [
-        TechnicalCard(
+        AppCard(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -303,21 +304,21 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          isParent ? 'PARENT ACTIVITY' : 'SUB-ACTIVITY',
-                          style: AppTypography.overline.copyWith(
+                          isParent ? 'Parent Activity' : 'Sub-activity',
+                          style: AppTypography.label.copyWith(
                             color: isParent ? kAccent : kInfo,
                           ),
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          activity['name'].toString().toUpperCase(),
+                          activity['name'].toString(),
                           style: AppTypography.h3,
                         ),
                       ],
                     ),
                   ),
                   if (activity['is_graded'] == true)
-                    const AppStatusBadge(label: 'GRADED', color: kAccent),
+                    const AppStatusBadge(label: 'Graded', color: kAccent),
                 ],
               ),
               const SizedBox(height: 16),
@@ -325,37 +326,37 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
                 children: [
                   if (isParent) ...[
                     _buildActionButton(
-                      icon: (activity['display_role'] != null || activity['target_role'] != null) ? Icons.psychology : Icons.group_add_outlined,
+                      icon: (activity['display_role'] != null || activity['target_role'] != null) ? Icons.psychology_rounded : Icons.group_add_rounded,
                       label: (activity['display_role'] != null || activity['target_role'] != null)
-                        ? (activity['display_role'] ?? activity['target_role']).toString().toUpperCase()
-                        : '${(activity['trainee_ids'] as List).length} ASSIGNED',
+                        ? (activity['display_role'] ?? activity['target_role']).toString()
+                        : '${(activity['trainee_ids'] as List).length} assigned',
                       onTap: () => _showRoleAssignmentDialog(activity),
                     ),
                     const SizedBox(width: 8),
                     _buildActionButton(
-                      icon: Icons.add_circle_outline,
-                      label: 'SUB',
+                      icon: Icons.add_circle_outline_rounded,
+                      label: 'Sub',
                       onTap: () => _navigateToCreateActivity(
                         parentId: activity['id'],
                         parentName: activity['name'],
                       ),
                     ),
                   ] else ...[
-                     const Text('GETS TRAINEES FROM PARENT', style: TextStyle(color: kForegroundMuted, fontSize: 10, fontStyle: FontStyle.italic)),
+                     const Text('Inherits members from parent', style: TextStyle(color: kForegroundMuted, fontSize: 11, fontStyle: FontStyle.italic)),
                   ],
                   const Spacer(),
                   IconButton(
-                    icon: const Icon(Icons.delete_outline, color: kError, size: 20),
+                    icon: const Icon(Icons.delete_outline_rounded, color: kError, size: 20),
                     onPressed: () async {
                       final confirm = await showDialog<bool>(
                         context: context,
                         builder: (context) => AlertDialog(
                           backgroundColor: kSurface,
-                          title: const Text('DELETE ACTIVITY?', style: AppTypography.h3),
+                          title: const Text('Delete activity?', style: AppTypography.h3),
                           content: const Text('This will remove the activity and all its sub-activities.', style: AppTypography.body),
                           actions: [
-                            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('CANCEL')),
-                            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('DELETE', style: TextStyle(color: kError))),
+                            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete', style: TextStyle(color: kError))),
                           ],
                         ),
                       );
@@ -367,6 +368,24 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
                   ),
                 ],
               ),
+              if (activity['is_graded'] == true) ...[
+                const SizedBox(height: 12),
+                _buildActionButton(
+                  icon: Icons.assignment_turned_in_rounded,
+                  label: 'Assess Members',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => ScoreTraineesPage(
+                        sessionId: widget.sessionId,
+                        activityId: activity['id'],
+                        activityName: activity['name'],
+                        roleId: activity['target_role_id'],
+                        roleName: activity['display_role'] ?? activity['target_role'],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -385,19 +404,20 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
   Widget _buildActionButton({required IconData icon, required String label, required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(kRadiusSmall),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
-          color: kSurfaceElevated,
+          color: kSurfaceElevated.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(kRadiusSmall),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          border: Border.all(color: kBorder.withValues(alpha: 0.3)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, size: 14, color: kAccent),
             const SizedBox(width: 6),
-            Text(label, style: AppTypography.overline.copyWith(color: kForeground)),
+            Text(label, style: AppTypography.label.copyWith(color: kForeground, fontSize: 10)),
           ],
         ),
       ),

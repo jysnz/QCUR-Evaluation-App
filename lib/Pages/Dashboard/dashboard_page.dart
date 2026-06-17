@@ -95,7 +95,7 @@ class _DashboardPageState extends State<DashboardPage> {
               child: Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: kAccent.withValues(alpha: 0.3), width: 1.5),
+                  border: Border.all(color: kAccent.withValues(alpha: 0.2), width: 2),
                 ),
                 child: CircleAvatar(
                   radius: 18,
@@ -104,7 +104,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       ? NetworkImage(_userProfile!['avatar_url'])
                       : null,
                   child: _userProfile?['avatar_url'] == null
-                      ? const Icon(Icons.person, size: 20, color: kAccent)
+                      ? const Icon(Icons.person, size: 20, color: kForegroundMuted)
                       : null,
                 ),
               ),
@@ -114,10 +114,10 @@ class _DashboardPageState extends State<DashboardPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('WELCOME BACK', style: AppTypography.overline.copyWith(color: kForegroundMuted)),
+                  Text('Welcome back,', style: AppTypography.caption),
                   Text(
-                    _userProfile?['full_name']?.toString().toUpperCase() ?? 'OPERATOR',
-                    style: AppTypography.bodyLg.copyWith(fontWeight: FontWeight.w900),
+                    _userProfile?['full_name']?.toString() ?? 'User',
+                    style: AppTypography.bodyLg.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
@@ -131,14 +131,14 @@ class _DashboardPageState extends State<DashboardPage> {
                 MaterialPageRoute(builder: (context) => const TraineesPage()),
               );
             },
-            icon: const Icon(Icons.people_alt_outlined, color: kForeground),
+            icon: const Icon(Icons.people_outline_rounded, color: kForeground),
           ),
           const SizedBox(width: 8),
         ],
       ),
       body: Stack(
         children: [
-          const TechnicalGridBackground(),
+          const AppBackground(child: SizedBox.expand()),
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: kPadding),
@@ -147,14 +147,14 @@ class _DashboardPageState extends State<DashboardPage> {
                 children: [
                   const SizedBox(height: 16),
                   const SectionHeader(
-                    title: 'Home',
-                    subtitle: 'Manage your training sessions',
+                    title: 'Overview',
+                    subtitle: 'Track your current progress',
                   ),
                   const SizedBox(height: 24),
                   _buildStatsRow(),
                   const SizedBox(height: 24),
                   Expanded(
-                    child: TechnicalCard(
+                    child: AppCard(
                       padding: EdgeInsets.zero,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -177,9 +177,9 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  TechnicalButton(
-                    label: 'Start New Session',
-                    icon: Icons.add_to_photos_outlined,
+                  AppButton(
+                    label: 'New Training Session',
+                    icon: Icons.add_rounded,
                     onTap: () async {
                       final result = await Navigator.of(context).push(
                         MaterialPageRoute(
@@ -205,29 +205,29 @@ class _DashboardPageState extends State<DashboardPage> {
     return Row(
       children: [
         Expanded(
-          child: _buildStatItem('TOTAL', _sessions.length.toString(), kInfo),
+          child: _buildStatItem('Total', _sessions.length.toString(), kInfo),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: _buildStatItem('ACTIVE', _sessions.where((s) => s['status'] == 'active').length.toString(), kAccent),
+          child: _buildStatItem('Active', _sessions.where((s) => s['status'] == 'active').length.toString(), kAccent),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: _buildStatItem('DONE', _sessions.where((s) => s['status'] == 'completed').length.toString(), kSuccess),
+          child: _buildStatItem('Done', _sessions.where((s) => s['status'] == 'completed').length.toString(), kSuccess),
         ),
       ],
     );
   }
 
   Widget _buildStatItem(String label, String value, Color color) {
-    return TechnicalCard(
+    return AppCard(
       padding: const EdgeInsets.all(16),
-      color: color.withValues(alpha: 0.05),
+      color: kSurface,
       border: Border.all(color: color.withValues(alpha: 0.1)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: AppTypography.overline.copyWith(color: color)),
+          Text(label, style: AppTypography.label.copyWith(color: color)),
           const SizedBox(height: 8),
           Text(value, style: AppTypography.h1.copyWith(color: color)),
         ],
@@ -239,14 +239,14 @@ class _DashboardPageState extends State<DashboardPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
-        border: const Border(bottom: BorderSide(color: Colors.white10)),
+        color: kForeground.withValues(alpha: 0.03),
+        border: const Border(bottom: BorderSide(color: kBorder)),
       ),
       child: Row(
         children: [
-          Expanded(flex: 3, child: Text('NAME', style: AppTypography.overline.copyWith(color: kForegroundMuted))),
-          Expanded(flex: 2, child: Text('DATE', style: AppTypography.overline.copyWith(color: kForegroundMuted))),
-          Expanded(flex: 2, child: Text('STATUS', style: AppTypography.overline.copyWith(color: kForegroundMuted))),
+          Expanded(flex: 3, child: Text('NAME', style: AppTypography.label)),
+          Expanded(flex: 2, child: Text('DATE', style: AppTypography.label)),
+          Expanded(flex: 2, child: Text('STATUS', style: AppTypography.label)),
         ],
       ),
     );
@@ -256,7 +256,7 @@ class _DashboardPageState extends State<DashboardPage> {
     return ListView.separated(
       physics: const AlwaysScrollableScrollPhysics(),
       itemCount: _sessions.length,
-      separatorBuilder: (context, index) => const Divider(height: 1, color: Colors.white10),
+      separatorBuilder: (context, index) => const Divider(height: 1, color: kBorder),
       itemBuilder: (context, index) {
         final session = _sessions[index];
         final date = DateTime.parse(session['date']);
@@ -278,8 +278,8 @@ class _DashboardPageState extends State<DashboardPage> {
                 Expanded(
                   flex: 3,
                   child: Text(
-                    session['name'].toString().toUpperCase(),
-                    style: AppTypography.body.copyWith(fontWeight: FontWeight.bold),
+                    session['name'].toString(),
+                    style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
                   ),
                 ),
                 Expanded(
@@ -295,7 +295,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     children: [
                       _buildStatusBadge(session['status']),
                       const Spacer(),
-                      const Icon(Icons.chevron_right, color: kAccent, size: 18),
+                      const Icon(Icons.chevron_right_rounded, color: kForegroundDisabled, size: 20),
                     ],
                   ),
                 ),
@@ -306,6 +306,7 @@ class _DashboardPageState extends State<DashboardPage> {
       },
     );
   }
+
 
   Widget _buildStatusBadge(String status) {
     Color color;

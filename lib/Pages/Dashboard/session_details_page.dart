@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/activity_management_page.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/session_members_tab.dart';
@@ -59,21 +58,21 @@ class _SessionDetailsPageState extends State<SessionDetailsPage> {
           backgroundColor: kSurface,
           selectedItemColor: kAccent,
           unselectedItemColor: kForegroundDisabled,
-          selectedLabelStyle: AppTypography.overline.copyWith(fontSize: 8),
-          unselectedLabelStyle: AppTypography.overline.copyWith(fontSize: 8, color: kForegroundDisabled),
+          selectedLabelStyle: AppTypography.label.copyWith(fontSize: 10),
+          unselectedLabelStyle: AppTypography.label.copyWith(fontSize: 10, color: kForegroundDisabled),
           type: BottomNavigationBarType.fixed,
           items: const [
             BottomNavigationBarItem(
               icon: Icon(Icons.list_alt_rounded),
-              label: 'ACTIVITIES',
+              label: 'Activities',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.people_outline),
-              label: 'MEMBERS',
+              icon: Icon(Icons.people_outline_rounded),
+              label: 'Members',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.emoji_events_outlined),
-              label: 'RANKINGS',
+              label: 'Rankings',
             ),
           ],
         ),

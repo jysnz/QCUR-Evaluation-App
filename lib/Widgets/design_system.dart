@@ -1,46 +1,49 @@
 import 'package:flutter/material.dart';
 
-// --- COLOR PALETTE (UI/UX PRO MAX - Professional Dark Theme) ---
-const kAccent = Color(0xFF00FFD1); // Primary Brand Color
-const kAccentDark = Color(0xFF00BFA5);
-const kBackground = Color(0xFF0A0A0B); // Deep Dark
-const kSurface = Color(0xFF161618); // Elevated Surface
-const kSurfaceElevated = Color(0xFF1F1F22); // More Elevation
-const kForeground = Color(0xFFFFFFFF); // High Emphasis Text
-const kForegroundMuted = Color(0xFF8E8E93); // Medium Emphasis
-const kForegroundDisabled = Color(0xFF48484A); // Low Emphasis
-const kError = Color(0xFFFF453A);
-const kSuccess = Color(0xFF32D74B);
-const kWarning = Color(0xFFFF9F0A);
-const kInfo = Color(0xFF0A84FF);
+// --- COLOR PALETTE (UI/UX PRO MAX - Premium Minimalist) ---
+const kAccent = Color(0xFF22C55E); // Emerald Green (Friendlier)
+const kAccentLight = Color(0xFF4ADE80);
+const kAccentDark = Color(0xFF166534);
+const kBackground = Color(0xFF020617); // Dark Navy
+const kSurface = Color(0xFF0F172A); // Slate
+const kSurfaceElevated = Color(0xFF1E293B); // Lighter Slate
+const kForeground = Color(0xFFF8FAFC); // High Emphasis
+const kForegroundMuted = Color(0xFF94A3B8); // Medium Emphasis
+const kForegroundDisabled = Color(0xFF475569); // Low Emphasis
+const kError = Color(0xFFEF4444);
+const kSuccess = Color(0xFF22C55E);
+const kWarning = Color(0xFFF59E0B);
+const kInfo = Color(0xFF3B82F6);
+const kBorder = Color(0xFF334155);
 
 // --- DESIGN TOKENS ---
-const kRadius = 12.0;
-const kRadiusSmall = 8.0;
+const kRadius = 16.0;
+const kRadiusLarge = 24.0;
+const kRadiusSmall = 12.0;
 const kPadding = 16.0;
 const kPaddingLarge = 24.0;
 const kPaddingSmall = 8.0;
 
-// --- TYPOGRAPHY (Professional Scale) ---
+// --- TYPOGRAPHY (Clean & Friendly) ---
 class AppTypography {
   static const TextStyle h1 = TextStyle(
     color: kForeground,
-    fontSize: 24,
-    fontWeight: FontWeight.w900,
+    fontSize: 28,
+    fontWeight: FontWeight.w700,
     letterSpacing: -0.5,
   );
 
   static const TextStyle h2 = TextStyle(
     color: kForeground,
-    fontSize: 20,
-    fontWeight: FontWeight.w800,
+    fontSize: 22,
+    fontWeight: FontWeight.w700,
     letterSpacing: -0.2,
   );
 
   static const TextStyle h3 = TextStyle(
     color: kForeground,
-    fontSize: 16,
-    fontWeight: FontWeight.w800,
+    fontSize: 18,
+    fontWeight: FontWeight.w600,
   );
 
   static const TextStyle bodyLg = TextStyle(
@@ -61,49 +64,75 @@ class AppTypography {
     fontWeight: FontWeight.w500,
   );
 
+  static const TextStyle label = TextStyle(
+    color: kForegroundMuted,
+    fontSize: 12,
+    fontWeight: FontWeight.w600,
+    letterSpacing: 0.5,
+  );
+
   static const TextStyle overline = TextStyle(
-    color: kAccent,
+    color: kForegroundMuted,
     fontSize: 10,
-    fontWeight: FontWeight.w900,
-    letterSpacing: 2.0,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 1.2,
   );
 }
 
 // --- COMPONENTS ---
+
+class AppBackground extends StatelessWidget {
+  final Widget child;
+  const AppBackground({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: kBackground,
+        gradient: RadialGradient(
+          center: Alignment(-0.8, -0.6),
+          radius: 1.5,
+          colors: [
+            Color(0xFF0F172A),
+            kBackground,
+          ],
+        ),
+      ),
+      child: child,
+    );
+  }
+}
 
 class TechnicalGridBackground extends StatelessWidget {
   const TechnicalGridBackground({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: kBackground,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: CustomPaint(
-              painter: GridPainter(),
-            ),
-          ),
-        ],
+    return IgnorePointer(
+      child: CustomPaint(
+        painter: _GridPainter(),
+        child: const SizedBox.expand(),
       ),
     );
   }
 }
 
-class GridPainter extends CustomPainter {
+class _GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = kAccent.withValues(alpha: 0.03)
+      ..color = kBorder.withValues(alpha: 0.05)
       ..strokeWidth = 1.0;
 
-    const spacing = 32.0; // Standard 8dp multiple
-    for (double i = 0; i < size.width; i += spacing) {
-      canvas.drawLine(Offset(i, 0), Offset(i, size.height), paint);
+    const step = 32.0;
+
+    for (double x = 0; x < size.width; x += step) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
     }
-    for (double i = 0; i < size.height; i += spacing) {
-      canvas.drawLine(Offset(0, i), Offset(size.width, i), paint);
+
+    for (double y = 0; y < size.height; y += step) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
     }
   }
 
@@ -111,37 +140,43 @@ class GridPainter extends CustomPainter {
   bool shouldRepaint(CustomPainter oldDelegate) => false;
 }
 
-class TechnicalCard extends StatelessWidget {
+class AppCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
+  final EdgeInsetsGeometry? margin;
   final Color? color;
   final double? radius;
   final Border? border;
+  final List<BoxShadow>? boxShadow;
 
-  const TechnicalCard({
+  const AppCard({
     super.key,
     required this.child,
     this.padding,
+    this.margin,
     this.color,
     this.radius,
     this.border,
+    this.boxShadow,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      margin: margin,
       padding: padding ?? const EdgeInsets.all(kPadding),
       decoration: BoxDecoration(
-        color: color ?? kSurface.withValues(alpha: 0.6),
+        color: color ?? kSurface,
         borderRadius: BorderRadius.circular(radius ?? kRadius),
-        border: border ?? Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: border ?? Border.all(color: kBorder.withValues(alpha: 0.5)),
+        boxShadow: boxShadow,
       ),
       child: child,
     );
   }
 }
 
-class TechnicalButton extends StatelessWidget {
+class AppButton extends StatelessWidget {
   final String label;
   final VoidCallback? onTap;
   final bool isLoading;
@@ -149,59 +184,68 @@ class TechnicalButton extends StatelessWidget {
   final Color textColor;
   final IconData? icon;
   final bool isSecondary;
+  final bool isFullWidth;
 
-  const TechnicalButton({
+  const AppButton({
     super.key,
     required this.label,
     this.onTap,
     this.isLoading = false,
     this.color = kAccent,
-    this.textColor = Colors.black,
+    this.textColor = Colors.white,
     this.icon,
     this.isSecondary = false,
+    this.isFullWidth = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    final finalColor = isSecondary ? kSurface : color;
+    final finalColor = isSecondary ? Colors.transparent : color;
     final finalTextColor = isSecondary ? kForeground : textColor;
 
-    return Material(
-      color: onTap == null ? kForegroundDisabled : finalColor,
-      borderRadius: BorderRadius.circular(kRadius),
-      child: InkWell(
-        onTap: (isLoading || onTap == null) ? null : onTap,
-        borderRadius: BorderRadius.circular(kRadius),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-          child: Center(
-            child: isLoading
-                ? SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: finalTextColor,
-                    ),
-                  )
-                : Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (icon != null) ...[
-                        Icon(icon, size: 20, color: finalTextColor),
-                        const SizedBox(width: 12),
-                      ],
-                      Text(
-                        label.toUpperCase(),
-                        style: TextStyle(
-                          color: finalTextColor,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.2,
-                          fontSize: 14,
-                        ),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      child: Material(
+        color: onTap == null ? kForegroundDisabled.withValues(alpha: 0.3) : finalColor,
+        borderRadius: BorderRadius.circular(kRadiusLarge),
+        child: InkWell(
+          onTap: (isLoading || onTap == null) ? null : onTap,
+          borderRadius: BorderRadius.circular(kRadiusLarge),
+          child: Container(
+            width: isFullWidth ? double.infinity : null,
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(kRadiusLarge),
+              border: isSecondary ? Border.all(color: kBorder) : null,
+            ),
+            child: Center(
+              child: isLoading
+                  ? SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: finalTextColor,
                       ),
-                    ],
-                  ),
+                    )
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (icon != null) ...[
+                          Icon(icon, size: 20, color: finalTextColor),
+                          const SizedBox(width: 12),
+                        ],
+                        Text(
+                          label,
+                          style: TextStyle(
+                            color: finalTextColor,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
           ),
         ),
       ),
@@ -216,6 +260,9 @@ class AppTextField extends StatelessWidget {
   final bool isObscure;
   final TextInputType keyboardType;
   final String? Function(String?)? validator;
+  final int? maxLines;
+  final TextAlign textAlign;
+  final IconData? icon;
 
   const AppTextField({
     super.key,
@@ -225,6 +272,9 @@ class AppTextField extends StatelessWidget {
     this.isObscure = false,
     this.keyboardType = TextInputType.text,
     this.validator,
+    this.maxLines = 1,
+    this.textAlign = TextAlign.start,
+    this.icon,
   });
 
   @override
@@ -232,34 +282,39 @@ class AppTextField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label.toUpperCase(), style: AppTypography.overline),
-        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(label, style: AppTypography.label),
+        ),
         TextFormField(
           controller: controller,
           obscureText: isObscure,
           keyboardType: keyboardType,
           validator: validator,
-          style: AppTypography.bodyLg.copyWith(fontWeight: FontWeight.bold),
+          maxLines: maxLines,
+          textAlign: textAlign,
+          style: AppTypography.bodyLg,
           decoration: InputDecoration(
+            prefixIcon: icon != null ? Icon(icon, size: 20, color: kForegroundMuted) : null,
             hintText: hint,
-            hintStyle: TextStyle(color: kForeground.withValues(alpha: 0.2)),
+            hintStyle: TextStyle(color: kForegroundMuted.withValues(alpha: 0.5)),
             filled: true,
-            fillColor: kSurfaceElevated,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            fillColor: kSurfaceElevated.withValues(alpha: 0.5),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(kRadiusSmall),
+              borderRadius: BorderRadius.circular(kRadius),
               borderSide: BorderSide.none,
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(kRadiusSmall),
-              borderSide: const BorderSide(color: Colors.white10),
+              borderRadius: BorderRadius.circular(kRadius),
+              borderSide: const BorderSide(color: kBorder, width: 1),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(kRadiusSmall),
-              borderSide: const BorderSide(color: kAccent, width: 1.5),
+              borderRadius: BorderRadius.circular(kRadius),
+              borderSide: const BorderSide(color: kAccent, width: 2),
             ),
             errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(kRadiusSmall),
+              borderRadius: BorderRadius.circular(kRadius),
               borderSide: const BorderSide(color: kError, width: 1.5),
             ),
           ),
@@ -289,7 +344,7 @@ class SectionHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title.toUpperCase(), style: AppTypography.h2),
+              Text(title, style: AppTypography.h2),
               if (subtitle != null) ...[
                 const SizedBox(height: 4),
                 Text(subtitle!, style: AppTypography.caption),
@@ -316,21 +371,21 @@ class AppStatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        borderRadius: BorderRadius.circular(kRadiusSmall),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Text(
-        label.toUpperCase(),
+        label[0].toUpperCase() + label.substring(1),
         style: TextStyle(
           color: color,
-          fontSize: 9,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 1,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );
   }
 }
+

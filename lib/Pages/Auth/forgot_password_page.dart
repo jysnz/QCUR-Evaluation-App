@@ -39,54 +39,36 @@ class ForgotPasswordPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 32),
                     const Text(
-                      'COMING SOON',
+                      'Coming Soon',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        letterSpacing: 1.0,
-                      ),
+                      style: AppTypography.h1,
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'This feature is not ready yet. Please try again later.',
+                      'This feature is currently under development. Please check back later.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.white.withValues(alpha: 0.5),
-                        fontWeight: FontWeight.w500,
-                        height: 1.5,
-                      ),
+                      style: AppTypography.body.copyWith(color: kForegroundMuted),
                     ),
                     const SizedBox(height: 48),
                     AuthGlassCard(
                       child: Column(
                         children: [
-                          const Text(
+                          Text(
                             'Status',
-                            style: TextStyle(
-                              color: kAccent,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.2,
-                            ),
+                            style: AppTypography.label.copyWith(color: kAccent),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             'Working on it',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.8),
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
+                            style: AppTypography.h3,
                           ),
                         ],
                       ),
                     ),
                     const SizedBox(height: 32),
-                    TechnicalButton(
-                      label: 'Back to Log In',
+                    AppButton(
+                      label: 'Back to Sign In',
+                      isSecondary: true,
                       onTap: () => Navigator.of(context).pop(),
                     ),
                   ],

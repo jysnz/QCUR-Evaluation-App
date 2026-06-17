@@ -183,10 +183,10 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: Text('LEADERBOARD', style: AppTypography.h3.copyWith(letterSpacing: 2)),
+        title: const Text('Leaderboard', style: AppTypography.h3),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: kAccent),
+            icon: const Icon(Icons.refresh_rounded, color: kAccent),
             onPressed: _fetchRankings,
           ),
         ],
@@ -214,17 +214,20 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
               Container(
                 width: 4,
                 height: 24,
-                color: kAccent,
+                decoration: BoxDecoration(
+                  color: kAccent,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
               const SizedBox(width: 8),
               Text(
-                roleName.toUpperCase(),
-                style: AppTypography.h3.copyWith(color: kAccent, letterSpacing: 1),
+                roleName,
+                style: AppTypography.h3.copyWith(color: kAccent),
               ),
               const Spacer(),
               Text(
-                '${trainees.length} TRAINEES',
-                style: AppTypography.caption.copyWith(color: kForegroundMuted),
+                '${trainees.length} members',
+                style: AppTypography.caption,
               ),
             ],
           ),
@@ -241,26 +244,27 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
 
   Widget _buildRankingCard(int rank, Map<String, dynamic> trainee) {
     Color rankColor;
-    if (rank == 1) rankColor = const Color(0xFFFFD700); // Gold
-    else if (rank == 2) rankColor = const Color(0xFFC0C0C0); // Silver
-    else if (rank == 3) rankColor = const Color(0xFFCD7F32); // Bronze
-    else rankColor = kForegroundMuted;
+    if (rank == 1) {
+      rankColor = const Color(0xFFFFD700); // Gold
+    } else if (rank == 2) {
+      rankColor = const Color(0xFFC0C0C0); // Silver
+    } else if (rank == 3) {
+      rankColor = const Color(0xFFCD7F32); // Bronze
+    } else {
+      rankColor = kForegroundMuted;
+    }
 
-    return Container(
+    return AppCard(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: kSurface,
-        border: Border.all(color: rank <= 3 ? rankColor.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.05)),
-        borderRadius: BorderRadius.circular(4),
-      ),
+      border: rank <= 3 ? Border.all(color: rankColor.withValues(alpha: 0.3)) : null,
       child: Row(
         children: [
           Container(
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: rank <= 3 ? rankColor.withValues(alpha: 0.1) : Colors.transparent,
+              color: rank <= 3 ? rankColor.withValues(alpha: 0.1) : kSurfaceElevated,
               shape: BoxShape.circle,
               border: Border.all(color: rankColor.withValues(alpha: 0.5)),
             ),
@@ -276,10 +280,10 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(trainee['name'], style: AppTypography.h3.copyWith(fontSize: 14)),
+                Text(trainee['name'], style: AppTypography.bodyLg.copyWith(fontWeight: FontWeight.bold)),
                 Text(
-                  '${trainee['activity_count']} activities evaluated',
-                  style: AppTypography.caption.copyWith(fontSize: 10),
+                  '${trainee['activity_count']} activities',
+                  style: AppTypography.caption,
                 ),
               ],
             ),
@@ -289,11 +293,11 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
             children: [
               Text(
                 trainee['average_score'].toStringAsFixed(2),
-                style: AppTypography.h2.copyWith(color: kAccent, fontSize: 18),
+                style: AppTypography.h2.copyWith(color: kAccent),
               ),
               Text(
-                'AVG SCORE',
-                style: AppTypography.overline.copyWith(fontSize: 8),
+                'Avg Score',
+                style: AppTypography.label.copyWith(fontSize: 10),
               ),
             ],
           ),
@@ -307,15 +311,15 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.emoji_events_outlined, size: 64, color: kForegroundDisabled),
+          Icon(Icons.emoji_events_rounded, size: 64, color: kForegroundDisabled),
           const SizedBox(height: 16),
           Text(
-            'NO RANKINGS YET',
+            'No rankings yet',
             style: AppTypography.h3.copyWith(color: kForegroundMuted),
           ),
           const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 40),
             child: Text(
               'Complete graded activities to generate rankings.',
               textAlign: TextAlign.center,
@@ -323,8 +327,9 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
             ),
           ),
           const SizedBox(height: 24),
-          TechnicalButton(
-            label: 'REFRESH',
+          AppButton(
+            label: 'Refresh',
+            isFullWidth: false,
             onTap: _fetchRankings,
           ),
         ],

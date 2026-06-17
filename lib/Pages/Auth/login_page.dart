@@ -149,19 +149,19 @@ class _LoginPageState extends State<LoginPage> {
                         shape: BoxShape.circle,
                         border: Border.all(color: kAccent.withValues(alpha: 0.2), width: 2),
                       ),
-                      child: const Icon(Icons.security_outlined, size: 56, color: kAccent),
+                      child: const Icon(Icons.shield_rounded, size: 56, color: kAccent),
                     ),
                     const SizedBox(height: 32),
-                    Text(
-                      'COMMAND ACCESS',
+                    const Text(
+                      'Welcome Back',
                       textAlign: TextAlign.center,
-                      style: AppTypography.h1.copyWith(letterSpacing: 4),
+                      style: AppTypography.h1,
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'AUTHORIZED PERSONNEL ONLY',
+                      'Please sign in to continue',
                       textAlign: TextAlign.center,
-                      style: AppTypography.overline.copyWith(color: kForegroundMuted),
+                      style: AppTypography.body.copyWith(color: kForegroundMuted),
                     ),
                     const SizedBox(height: 48),
                     AuthGlassCard(
@@ -170,17 +170,17 @@ class _LoginPageState extends State<LoginPage> {
                         children: [
                           AuthTextField(
                             controller: _emailController,
-                            label: 'Access Email',
-                            hint: 'Enter your credentials...',
+                            label: 'Email Address',
+                            hint: 'your@email.com',
                             icon: Icons.alternate_email_rounded,
                             keyboardType: TextInputType.emailAddress,
                           ),
                           const SizedBox(height: 24),
                           AuthTextField(
                             controller: _passwordController,
-                            label: 'Security Key',
-                            hint: 'Enter password...',
-                            icon: Icons.vpn_key_outlined,
+                            label: 'Password',
+                            hint: '••••••••',
+                            icon: Icons.lock_outline_rounded,
                             obscureText: true,
                           ),
                           const SizedBox(height: 12),
@@ -192,40 +192,39 @@ class _LoginPageState extends State<LoginPage> {
                                 padding: const EdgeInsets.symmetric(horizontal: 8),
                                 minimumSize: Size.zero,
                               ),
-                              child: Text('RECOVER KEY?', 
+                              child: Text('Forgot password?', 
                                 style: AppTypography.caption.copyWith(
                                   color: kAccent,
-                                  fontWeight: FontWeight.w900,
+                                  fontWeight: FontWeight.w600,
                                 )),
                             ),
                           ),
                           const SizedBox(height: 32),
                           AuthButton(
-                            label: 'Authenticate',
+                            label: 'Sign In',
                             onPressed: _signIn,
                             isLoading: _isLoading,
-                            icon: Icons.login_outlined,
+                            icon: Icons.login_rounded,
                           ),
                           const SizedBox(height: 32),
                           Row(
                             children: [
-                              Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.05))),
+                              Expanded(child: Divider(color: kBorder.withValues(alpha: 0.5))),
                               Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 16),
                                 child: Text(
-                                  'EXTERNAL SSO',
-                                  style: AppTypography.overline.copyWith(
-                                    color: kForegroundDisabled,
-                                    fontSize: 8,
+                                  'OR CONTINUE WITH',
+                                  style: AppTypography.label.copyWith(
+                                    fontSize: 10,
                                   ),
                                 ),
                               ),
-                              Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.05))),
+                              Expanded(child: Divider(color: kBorder.withValues(alpha: 0.5))),
                             ],
                           ),
                           const SizedBox(height: 32),
-                          TechnicalButton(
-                            label: 'Google Federation',
+                          AppButton(
+                            label: 'Google',
                             color: kSurfaceElevated,
                             textColor: kForeground,
                             onTap: _isLoading ? null : _signInWithGoogle,
@@ -239,17 +238,17 @@ class _LoginPageState extends State<LoginPage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          "New personnel?",
+                        const Text(
+                          "Don't have an account?",
                           style: AppTypography.caption,
                         ),
                         TextButton(
                           onPressed: _navigateToRegister,
                           child: Text(
-                            'INITIALIZE ACCOUNT',
+                            'Create Account',
                             style: AppTypography.caption.copyWith(
                               color: kAccent,
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),

@@ -6,7 +6,7 @@ class AuthBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const TechnicalGridBackground();
+    return const AppBackground(child: SizedBox.expand());
   }
 }
 
@@ -22,7 +22,7 @@ class AuthGlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TechnicalCard(
+    return AppCard(
       padding: padding ?? const EdgeInsets.all(kPaddingLarge),
       child: child,
     );
@@ -51,42 +51,13 @@ class AuthTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label.toUpperCase(), style: AppTypography.overline),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: controller,
-          obscureText: obscureText,
-          keyboardType: keyboardType,
-          enabled: enabled,
-          style: AppTypography.bodyLg.copyWith(
-            color: enabled ? kForeground : kForegroundDisabled,
-            fontWeight: FontWeight.bold,
-          ),
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: TextStyle(color: kForeground.withValues(alpha: 0.2)),
-            prefixIcon: Icon(icon, color: kAccent, size: 20),
-            filled: true,
-            fillColor: kSurfaceElevated,
-            contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(kRadiusSmall),
-              borderSide: BorderSide.none,
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(kRadiusSmall),
-              borderSide: const BorderSide(color: Colors.white10),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(kRadiusSmall),
-              borderSide: const BorderSide(color: kAccent, width: 1.5),
-            ),
-          ),
-        ),
-      ],
+    return AppTextField(
+      controller: controller,
+      label: label,
+      hint: hint,
+      icon: icon,
+      isObscure: obscureText,
+      keyboardType: keyboardType,
     );
   }
 }
@@ -109,7 +80,7 @@ class AuthButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TechnicalButton(
+    return AppButton(
       label: label,
       onTap: onPressed,
       isLoading: isLoading,

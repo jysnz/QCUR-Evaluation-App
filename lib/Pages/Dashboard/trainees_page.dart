@@ -15,20 +15,24 @@ class _TraineesPageState extends State<TraineesPage> {
   bool _isLoading = true;
   String _searchQuery = '';
   String? _roleFilter;
-
-  final List<String> _roles = [
-    'Programmer',
-    'Builder',
-    'Designer',
-    'Notebook Manager',
-    'Driver',
-    'Coach Driver'
-  ];
+  List<Map<String, dynamic>> _availableRoles = [];
 
   @override
   void initState() {
     super.initState();
     _fetchTrainees();
+    _fetchRoles();
+  }
+
+  Future<void> _fetchRoles() async {
+    try {
+      final data = await supabase.from('roles').select().order('name');
+      setState(() {
+        _availableRoles = List<Map<String, dynamic>>.from(data);
+      });
+    } catch (e) {
+      debugPrint('Error fetching roles: $e');
+    }
   }
 
   Future<void> _fetchTrainees() async {
@@ -72,40 +76,37 @@ class _TraineesPageState extends State<TraineesPage> {
       backgroundColor: kBackground,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        title: Text('ALL PEOPLE', style: AppTypography.h3.copyWith(letterSpacing: 2)),
+        title: const Text('Members', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
       ),
-      body: Stack(
-        children: [
-          const TechnicalGridBackground(),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(kPadding),
-              child: Column(
-                children: [
-                  const SectionHeader(
-                    title: 'People List',
-                    subtitle: 'All the people you have added',
-                  ),
-                  const SizedBox(height: 24),
-                  _buildSearchAndFilters(),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: _isLoading
-                        ? const Center(child: CircularProgressIndicator(color: kAccent))
-                        : RefreshIndicator(
-                            onRefresh: _fetchTrainees,
-                            color: kAccent,
-                            backgroundColor: kSurfaceElevated,
-                            child: _trainees.isEmpty
-                                ? _buildEmptyState()
-                                : _buildTraineesList(),
-                          ),
-                  ),
-                ],
-              ),
+      body: AppBackground(
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(kPadding),
+            child: Column(
+              children: [
+                const SectionHeader(
+                  title: 'Directory',
+                  subtitle: 'List of all registered members',
+                ),
+                const SizedBox(height: 24),
+                _buildSearchAndFilters(),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator(color: kAccent))
+                      : RefreshIndicator(
+                          onRefresh: _fetchTrainees,
+                          color: kAccent,
+                          backgroundColor: kSurfaceElevated,
+                          child: _trainees.isEmpty
+                              ? _buildEmptyState()
+                              : _buildTraineesList(),
+                        ),
+                ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -113,15 +114,15 @@ class _TraineesPageState extends State<TraineesPage> {
   Widget _buildSearchAndFilters() {
     return Column(
       children: [
-        TechnicalCard(
+        AppCard(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           child: TextField(
             onChanged: (v) => setState(() => _searchQuery = v),
             style: AppTypography.bodyLg,
             decoration: InputDecoration(
-              hintText: 'SEARCH LIST...',
-              hintStyle: AppTypography.overline.copyWith(color: kForegroundDisabled),
-              icon: const Icon(Icons.search, color: kAccent, size: 20),
+              hintText: 'Search members...',
+              hintStyle: AppTypography.label.copyWith(color: kForegroundDisabled),
+              icon: const Icon(Icons.search_rounded, color: kAccent, size: 20),
               border: InputBorder.none,
             ),
           ),
@@ -131,11 +132,11 @@ class _TraineesPageState extends State<TraineesPage> {
           scrollDirection: Axis.horizontal,
           child: Row(
             children: [
-              _buildFilterChip(null, 'ALL'),
+              _buildFilterChip(null, 'All'),
               const SizedBox(width: 8),
-              ..._roles.map((r) => Padding(
+              ..._availableRoles.map((r) => Padding(
                 padding: const EdgeInsets.only(right: 8.0),
-                child: _buildFilterChip(r, r.toUpperCase()),
+                child: _buildFilterChip(r['name'], r['name'].toString()),
               )),
             ],
           ),
@@ -150,19 +151,19 @@ class _TraineesPageState extends State<TraineesPage> {
       onTap: () => setState(() => _roleFilter = value),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected ? kAccent.withValues(alpha: 0.1) : kSurfaceElevated,
           borderRadius: BorderRadius.circular(kRadiusSmall),
           border: Border.all(
-            color: isSelected ? kAccent : Colors.white.withValues(alpha: 0.05),
+            color: isSelected ? kAccent : kBorder.withValues(alpha: 0.3),
           ),
         ),
         child: Text(
           label,
-          style: AppTypography.overline.copyWith(
+          style: AppTypography.label.copyWith(
             color: isSelected ? kAccent : kForegroundMuted,
-            fontSize: 8,
+            fontSize: 10,
           ),
         ),
       ),
@@ -177,9 +178,9 @@ class _TraineesPageState extends State<TraineesPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.search_off_outlined, size: 48, color: kForegroundDisabled),
+            const Icon(Icons.search_off_rounded, size: 48, color: kForegroundDisabled),
             const SizedBox(height: 16),
-            Text('NO ONE FOUND', style: AppTypography.overline.copyWith(color: kForegroundMuted)),
+            Text('No results found', style: AppTypography.label.copyWith(color: kForegroundMuted)),
           ],
         ),
       );
@@ -194,7 +195,7 @@ class _TraineesPageState extends State<TraineesPage> {
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 12.0),
-          child: TechnicalCard(
+          child: AppCard(
             padding: EdgeInsets.zero,
             child: ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -202,18 +203,17 @@ class _TraineesPageState extends State<TraineesPage> {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: kAccent.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(kRadiusSmall),
                 ),
-                child: const Icon(Icons.person_outline, color: kAccent, size: 20),
+                child: const Icon(Icons.person_outline_rounded, color: kAccent, size: 20),
               ),
               title: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    trainee['full_name'].toString().toUpperCase(),
+                    trainee['full_name'].toString(),
                     style: AppTypography.bodyLg.copyWith(
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                   if (traineeRoles.isNotEmpty) ...[
@@ -234,24 +234,24 @@ class _TraineesPageState extends State<TraineesPage> {
                       padding: const EdgeInsets.only(top: 8.0),
                       child: Text(
                         trainee['email'].toString().toLowerCase(), 
-                        style: AppTypography.caption.copyWith(fontStyle: FontStyle.italic),
+                        style: AppTypography.caption,
                       ),
                     ) 
                   : null,
               trailing: IconButton(
-                icon: const Icon(Icons.delete_outline, color: kError, size: 20),
+                icon: const Icon(Icons.delete_outline_rounded, color: kError, size: 20),
                 onPressed: () async {
                   final confirm = await showDialog<bool>(
                     context: context,
                     builder: (context) => AlertDialog(
                       backgroundColor: kSurface,
-                      title: const Text('REMOVE PERSON?', style: AppTypography.h3),
-                      content: Text('Are you sure you want to remove ${trainee['full_name']}?', style: AppTypography.body),
+                      title: const Text('Delete member?', style: AppTypography.h3),
+                      content: Text('Are you sure you want to remove ${trainee['full_name']} from the directory?', style: AppTypography.body),
                       actions: [
-                        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('CANCEL')),
+                        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
                         TextButton(
                           onPressed: () => Navigator.pop(context, true), 
-                          child: const Text('REMOVE', style: TextStyle(color: kError, fontWeight: FontWeight.bold)),
+                          child: const Text('Delete', style: TextStyle(color: kError, fontWeight: FontWeight.bold)),
                         ),
                       ],
                     ),
@@ -278,15 +278,15 @@ class _TraineesPageState extends State<TraineesPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.person_off_outlined, size: 64, color: kForegroundDisabled.withValues(alpha: 0.2)),
+              Icon(Icons.person_off_rounded, size: 64, color: kForegroundDisabled.withValues(alpha: 0.2)),
               const SizedBox(height: 24),
               Text(
-                'LIST IS EMPTY',
-                style: AppTypography.overline.copyWith(color: kForegroundMuted, letterSpacing: 2),
+                'Directory is empty',
+                style: AppTypography.h3.copyWith(color: kForegroundMuted),
               ),
               const SizedBox(height: 8),
-              Text(
-                'You can add people when you start a session.',
+              const Text(
+                'You can add members when you start a new session.',
                 style: AppTypography.caption,
               ),
             ],

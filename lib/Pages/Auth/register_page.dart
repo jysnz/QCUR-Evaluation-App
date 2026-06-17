@@ -129,26 +129,18 @@ class _RegisterPageState extends State<RegisterPage> {
               ),
               const SizedBox(height: 24),
               const Text(
-                'You are registered!',
+                'Registration Complete!',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                ),
+                style: AppTypography.h3,
               ),
               const SizedBox(height: 12),
               Text(
-                'Welcome! Your profile is ready.',
+                'Welcome! Your profile has been created.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.4),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: AppTypography.caption,
               ),
               const SizedBox(height: 32),
-              TechnicalButton(
+              AppButton(
                 label: 'Go to Dashboard',
                 onTap: () {
                   Navigator.of(dialogContext).pop();
@@ -429,18 +421,18 @@ class _RegisterPageState extends State<RegisterPage> {
                             
                             Row(
                               children: [
-                                Text('PASSWORD RULES', 
-                                  style: AppTypography.overline.copyWith(color: kForegroundDisabled)),
+                                Text('Password Rules', 
+                                  style: AppTypography.label.copyWith(color: kForegroundDisabled)),
                                 const SizedBox(width: 8),
-                                Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.05))),
+                                Expanded(child: Divider(color: kBorder.withValues(alpha: 0.3))),
                               ],
                             ),
                             const SizedBox(height: 12),
                             
-                            _PasswordRequirement(label: '8 or more letters', isValid: _hasMinLength),
-                            _PasswordRequirement(label: 'At least 1 BIG letter (A-Z)', isValid: _hasUppercase),
+                            _PasswordRequirement(label: '8 or more characters', isValid: _hasMinLength),
+                            _PasswordRequirement(label: 'At least 1 uppercase (A-Z)', isValid: _hasUppercase),
                             _PasswordRequirement(label: 'At least 1 number (0-9)', isValid: _hasNumber),
-                            _PasswordRequirement(label: '1 special mark (@, #, !, etc.)', isValid: _hasSpecialChar),
+                            _PasswordRequirement(label: '1 special character (@, #, !, etc.)', isValid: _hasSpecialChar),
                             
                             const SizedBox(height: 16),
                             
@@ -448,7 +440,7 @@ class _RegisterPageState extends State<RegisterPage> {
                               controller: _confirmPasswordController,
                               label: 'Confirm Password',
                               hint: 'Repeat your password',
-                              icon: Icons.lock_reset_outlined,
+                              icon: Icons.lock_reset_rounded,
                               obscureText: true,
                             ),
                             const SizedBox(height: 12),
@@ -457,7 +449,7 @@ class _RegisterPageState extends State<RegisterPage> {
                             
                             const SizedBox(height: 24),
                             
-                            const Text('Job / Position', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w700)),
+                            Text('Position', style: AppTypography.label),
                             const SizedBox(height: 8),
                             
                             Container(
