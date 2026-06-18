@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
+import 'package:qcur_evaluation/Pages/Dashboard/create_activity_page.dart';
+import 'package:qcur_evaluation/Pages/Dashboard/score_trainee_detail_page.dart';
 
 class ScoreTraineesPage extends StatefulWidget {
   final String sessionId;
   final String activityId;
   final String activityName;
+  final String? sessionName;
   final String? roleId;
   final String? roleName;
 
@@ -14,6 +17,7 @@ class ScoreTraineesPage extends StatefulWidget {
     required this.sessionId,
     required this.activityId,
     required this.activityName,
+    this.sessionName,
     this.roleId,
     this.roleName,
   });
@@ -26,13 +30,15 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
   final supabase = Supabase.instance.client;
   bool _isLoading = true;
   List<Map<String, dynamic>> _trainees = [];
-  Map<String, TextEditingController> _scoreControllers = {};
-  Map<String, TextEditingController> _feedbackControllers = {};
+  final Map<String, TextEditingController> _scoreControllers = {};
+  final Map<String, TextEditingController> _feedbackControllers = {};
+  List<Map<String, dynamic>> _subActivities = [];
+  bool _subExpanded = true;
 
   @override
   void initState() {
     super.initState();
-    _fetchTraineesAndResults();
+    _fetchData();
   }
 
   @override
@@ -46,268 +52,560 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
     super.dispose();
   }
 
-  Future<void> _fetchTraineesAndResults() async {
+  Future<void> _fetchData() async {
     setState(() => _isLoading = true);
     try {
-      // 1. Fetch trainees in this session
-      var query = supabase
-          .from('session_trainees')
-          .select('trainees!inner(*)')
-          .eq('session_id', widget.sessionId);
-      
-      // If a specific role is required, filter by it using the join table
-      if (widget.roleId != null) {
-        query = supabase
-            .from('session_trainees')
-            .select('trainees!inner(*, trainee_roles!inner(role_id))')
-            .eq('session_id', widget.sessionId)
-            .eq('trainees.trainee_roles.role_id', widget.roleId as Object);
-      }
-
-      final traineesData = await query;
-      final traineesList = traineesData.map((m) => m['trainees'] as Map<String, dynamic>).toList();
-
-      // 2. Fetch existing results for this activity
-      final resultsData = await supabase
-          .from('activity_results')
-          .select()
-          .eq('activity_id', widget.activityId);
-
-      final Map<String, Map<String, dynamic>> resultsMap = {
-        for (var r in resultsData) r['trainee_id']: r
-      };
-
-      setState(() {
-        _trainees = traineesList;
-        for (var trainee in _trainees) {
-          final id = trainee['id'] as String;
-          final existing = resultsMap[id];
-          
-          _scoreControllers[id] = TextEditingController(
-            text: (existing != null && existing['score'] != null) ? existing['score'].toString() : '',
-          );
-          _feedbackControllers[id] = TextEditingController(
-            text: existing != null ? existing['feedback'] ?? '' : '',
-          );
-        }
-        _isLoading = false;
-      });
+      await Future.wait([_fetchTraineesAndResults(), _fetchSubActivities()]);
+      if (mounted) setState(() => _isLoading = false);
     } catch (e) {
-      debugPrint('Error fetching scoring data: $e');
+      debugPrint('Error fetching data: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _saveScores() async {
-    setState(() => _isLoading = true);
-    try {
-      final List<Map<String, dynamic>> upsertData = [];
+  Future<void> _fetchTraineesAndResults() async {
+    var query = supabase
+        .from('session_trainees')
+        .select('trainees!inner(*)')
+        .eq('session_id', widget.sessionId);
 
+    if (widget.roleId != null) {
+      query = supabase
+          .from('session_trainees')
+          .select('trainees!inner(*, trainee_roles!inner(role_id))')
+          .eq('session_id', widget.sessionId)
+          .eq('trainees.trainee_roles.role_id', widget.roleId as Object);
+    }
+
+    final traineesData = await query;
+    final traineesList = traineesData.map((m) => m['trainees'] as Map<String, dynamic>).toList();
+
+    final resultsData = await supabase
+        .from('activity_results')
+        .select()
+        .eq('activity_id', widget.activityId);
+
+    final Map<String, Map<String, dynamic>> resultsMap = {
+      for (var r in resultsData) r['trainee_id']: r
+    };
+
+    setState(() {
+      _trainees = traineesList;
       for (var trainee in _trainees) {
         final id = trainee['id'] as String;
-        final scoreText = _scoreControllers[id]!.text.trim();
-        final feedbackText = _feedbackControllers[id]!.text.trim();
+        final existing = resultsMap[id];
 
-        if (scoreText.isNotEmpty) {
-          final score = double.tryParse(scoreText);
-          if (score != null) {
-            upsertData.add({
-              'activity_id': widget.activityId,
-              'trainee_id': id,
-              'score': score,
-              'feedback': feedbackText.isEmpty ? null : feedbackText,
-            });
-          }
-        }
-      }
-
-      if (upsertData.isNotEmpty) {
-        await supabase.from('activity_results').upsert(
-          upsertData,
-          onConflict: 'activity_id, trainee_id',
+        _scoreControllers[id] = TextEditingController(
+          text: (existing != null && existing['score'] != null) ? existing['score'].toString() : '',
+        );
+        _feedbackControllers[id] = TextEditingController(
+          text: existing != null ? existing['feedback'] ?? '' : '',
         );
       }
+    });
+  }
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Evaluation results synchronized.')),
-        );
-        Navigator.of(context).pop(true);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving scores: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+  Future<void> _fetchSubActivities() async {
+    final data = await supabase
+        .from('activities')
+        .select('*')
+        .eq('parent_id', widget.activityId)
+        .order('order_index');
+
+    setState(() {
+      _subActivities = List<Map<String, dynamic>>.from(data);
+    });
+  }
+
+  void _navigateToCreateSubActivity() async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => CreateActivityPage(
+          sessionId: widget.sessionId,
+          parentId: widget.activityId,
+          parentName: widget.activityName,
+        ),
+      ),
+    );
+    if (result == true) {
+      _fetchData();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBackground,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Assess Members', style: AppTypography.label),
+            Text(widget.sessionName?.toUpperCase() ?? '', style: AppTypography.overline.copyWith(color: kForegroundMuted)),
             Text(widget.activityName, style: AppTypography.h3),
           ],
         ),
       ),
-      body: AppBackground(
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: kAccent))
-            : _trainees.isEmpty
-                ? _buildEmptyState()
-                : Column(
-                    children: [
-                      _buildHeader(),
-                      Expanded(
-                        child: ListView.builder(
-                          padding: const EdgeInsets.all(kPadding),
-                          itemCount: _trainees.length,
-                          itemBuilder: (context, index) {
-                            return _buildTraineeScoringCard(_trainees[index]);
-                          },
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.all(kPaddingLarge),
-                        child: AppButton(
-                          label: 'Sync Results',
-                          icon: Icons.sync_rounded,
-                          onTap: _saveScores,
-                          isLoading: _isLoading,
-                        ),
-                      ),
-                    ],
+      body: Stack(
+        children: [
+          const TechnicalGridBackground(),
+          _isLoading
+              ? const Center(child: CircularProgressIndicator(color: kAccent))
+              : SafeArea(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(kPadding),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSubActivitiesSection(),
+                        const SizedBox(height: 16),
+                        _buildScoringSection(),
+                      ],
+                    ),
                   ),
+                ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildSubActivitiesSection() {
+    return AppCard(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onTap: () => setState(() => _subExpanded = !_subExpanded),
+            child: Row(
+              children: [
+                Icon(
+                  _subExpanded ? Icons.expand_less : Icons.expand_more,
+                  size: 18,
+                  color: kAccent,
+                ),
+                const SizedBox(width: 8),
+                Text('Sub-questions', style: AppTypography.h3.copyWith(fontSize: 15)),
+                const Spacer(),
+                Text('${_subActivities.length}', style: AppTypography.caption),
+              ],
+            ),
+          ),
+          if (_subExpanded) ...[
+            const SizedBox(height: 8),
+            const Divider(height: 1, color: kBorder),
+            const SizedBox(height: 8),
+            if (_subActivities.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Center(
+                  child: Text('No sub-questions yet', style: AppTypography.caption),
+                ),
+              )
+            else
+              ..._subActivities.map((sub) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  children: [
+                    Icon(Icons.subdirectory_arrow_right_rounded, size: 16, color: kForegroundMuted),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        sub['name'].toString(),
+                        style: AppTypography.body.copyWith(fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _navigateToCreateSubActivity,
+                icon: const Icon(Icons.add_circle_outline_rounded, size: 16),
+                label: const Text('Add Sub-question'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: kAccent,
+                  side: BorderSide(color: kAccent.withValues(alpha: 0.3)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusSmall)),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScoringSection() {
+    if (_trainees.isEmpty) return _buildEmptyState();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text('Scoring', style: AppTypography.h3.copyWith(fontSize: 15)),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: kAccent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '${_trainees.length} members',
+                style: TextStyle(color: kAccent, fontSize: 11, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _buildHeader(),
+        const SizedBox(height: 8),
+        ..._trainees.map((t) => _buildTraineeScoringCard(t)),
+      ],
     );
   }
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: kSurfaceElevated.withValues(alpha: 0.5),
-        border: const Border(bottom: BorderSide(color: kBorder)),
+        borderRadius: BorderRadius.circular(kRadiusSmall),
+        border: Border.all(color: kBorder.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.psychology_rounded, size: 16, color: kAccent),
-          const SizedBox(width: 8),
+          const Icon(Icons.psychology_rounded, size: 14, color: kAccent),
+          const SizedBox(width: 6),
           Text(
-            'Position: ${widget.roleName ?? "Manual selection"}',
-            style: AppTypography.label.copyWith(color: kAccent),
-          ),
-          const Spacer(),
-          Text(
-            '${_trainees.length} members found',
-            style: AppTypography.caption,
+            widget.roleName ?? 'Manual selection',
+            style: AppTypography.label.copyWith(color: kAccent, fontSize: 11),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTraineeScoringCard(Map<String, dynamic> trainee) {
-    final id = trainee['id'] as String;
+  String _getInitials(String name) {
+    final parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+    }
+    return name.isNotEmpty ? name[0].toUpperCase() : '?';
+  }
 
-    return AppCard(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: kAccent.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.person_outline_rounded, color: kAccent, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
+  void _openTraineeScoringSheet(Map<String, dynamic> trainee) {
+    final id = trainee['id'] as String;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: kSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(kRadius)),
+      ),
+      builder: (sheetContext) {
+        return SingleChildScrollView(
+                padding: const EdgeInsets.only(bottom: 16),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(trainee['full_name'].toString(), style: AppTypography.bodyLg.copyWith(fontWeight: FontWeight.bold)),
-                    if (trainee['email'] != null)
-                      Text(trainee['email'], style: AppTypography.caption),
+                    Center(
+                      child: Container(
+                        margin: const EdgeInsets.only(top: 12),
+                        width: 36,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: kForegroundDisabled,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(kPadding, 20, kPadding, 0),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 26,
+                            backgroundColor: kAccent.withValues(alpha: 0.15),
+                            child: Text(
+                              _getInitials(trainee['full_name'].toString()),
+                              style: TextStyle(color: kAccent, fontWeight: FontWeight.w700, fontSize: 18),
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(trainee['full_name'].toString(), style: AppTypography.h3.copyWith(fontSize: 18)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  widget.activityName,
+                                  style: AppTypography.caption.copyWith(fontSize: 11, color: kForegroundMuted),
+                                ),
+                                if (widget.roleName != null) ...[
+                                  const SizedBox(height: 4),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: kAccent.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      widget.roleName!,
+                                      style: TextStyle(color: kAccent, fontSize: 10, fontWeight: FontWeight.w600),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Divider(height: 1, color: kBorder),
+                    const SizedBox(height: 20),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: kPadding),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('SCORE', style: AppTypography.label),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: SizedBox(
+                                  height: 48,
+                                  child: TextField(
+                                    controller: _scoreControllers[id]!,
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                    style: AppTypography.h2.copyWith(fontSize: 22, color: kForeground),
+                                    textAlign: TextAlign.center,
+                                    decoration: InputDecoration(
+                                      hintText: '0',
+                                      hintStyle: TextStyle(color: kForegroundDisabled.withValues(alpha: 0.5)),
+                                      filled: true,
+                                      fillColor: kSurfaceElevated.withValues(alpha: 0.5),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(kRadiusSmall),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(kRadiusSmall),
+                                        borderSide: BorderSide(color: kBorder.withValues(alpha: 0.3), width: 1),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(kRadiusSmall),
+                                        borderSide: const BorderSide(color: kAccent, width: 1.5),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          Text('FEEDBACK', style: AppTypography.label),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _feedbackControllers[id]!,
+                            maxLines: 3,
+                            style: AppTypography.body.copyWith(fontSize: 13),
+                            decoration: InputDecoration(
+                              hintText: 'Notes on performance or behavior...',
+                              hintStyle: TextStyle(color: kForegroundDisabled.withValues(alpha: 0.5)),
+                              filled: true,
+                              fillColor: kSurfaceElevated.withValues(alpha: 0.5),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(kRadiusSmall),
+                                borderSide: BorderSide.none,
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(kRadiusSmall),
+                                borderSide: BorderSide(color: kBorder.withValues(alpha: 0.3), width: 1),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(kRadiusSmall),
+                                borderSide: const BorderSide(color: kAccent, width: 1.5),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    const Divider(height: 1, color: kBorder),
+                    Padding(
+                      padding: const EdgeInsets.all(kPadding),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: SizedBox(
+                              height: 48,
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.of(sheetContext).pop(),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: kForegroundMuted,
+                                  side: BorderSide(color: kBorder.withValues(alpha: 0.5)),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusLarge)),
+                                ),
+                                child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w600)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: SizedBox(
+                              height: 48,
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  _saveSingleScore(id);
+                                  Navigator.of(sheetContext).pop();
+                                },
+                                icon: const Icon(Icons.check_rounded, size: 18),
+                                label: const Text('Save Score', style: TextStyle(fontWeight: FontWeight.w600)),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: kAccent,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusLarge)),
+                                  elevation: 0,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
-              ),
-            ],
+              );
+    },
+    );
+  }
+
+  Future<void> _saveSingleScore(String traineeId) async {
+    try {
+      final scoreText = _scoreControllers[traineeId]!.text.trim();
+      final feedbackText = _feedbackControllers[traineeId]!.text.trim();
+
+      if (scoreText.isNotEmpty) {
+        final score = double.tryParse(scoreText);
+        if (score != null) {
+          await supabase.from('activity_results').upsert(
+            {
+              'activity_id': widget.activityId,
+              'trainee_id': traineeId,
+              'score': score,
+              'feedback': feedbackText.isEmpty ? null : feedbackText,
+            },
+            onConflict: 'activity_id, trainee_id',
+          );
+        }
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Saved'), duration: Duration(seconds: 1)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
+
+  void _openTraineeScoringFlow(Map<String, dynamic> trainee) {
+    if (_subActivities.isNotEmpty) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => ScoreTraineeDetailPage(
+            sessionId: widget.sessionId,
+            activityId: widget.activityId,
+            activityName: widget.activityName,
+            sessionName: widget.sessionName,
+            roleName: widget.roleName,
+            trainee: trainee,
+            subActivities: _subActivities,
           ),
-          const SizedBox(height: 16),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 2,
-                child: AppTextField(
-                  label: 'Score',
-                  hint: '0.00',
-                  controller: _scoreControllers[id]!,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                ),
+        ),
+      );
+    } else {
+      _openTraineeScoringSheet(trainee);
+    }
+  }
+
+  Widget _buildTraineeScoringCard(Map<String, dynamic> trainee) {
+    return GestureDetector(
+      onTap: () => _openTraineeScoringFlow(trainee),
+      child: AppCard(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: kAccent.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
               ),
-              const SizedBox(width: 12),
-              const Expanded(
-                flex: 3,
-                child: SizedBox(),
+              child: const Icon(Icons.person_outline_rounded, color: kAccent, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(trainee['full_name'].toString(), style: AppTypography.body.copyWith(fontWeight: FontWeight.w600, fontSize: 13)),
+                  if (trainee['email'] != null)
+                    Text(trainee['email'], style: AppTypography.caption.copyWith(fontSize: 10)),
+                ],
               ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          AppTextField(
-            label: 'Feedback',
-            hint: 'Notes on performance or behavior...',
-            controller: _feedbackControllers[id]!,
-            maxLines: 2,
-          ),
-        ],
+            ),
+            Icon(Icons.chevron_right_rounded, size: 18, color: kForegroundMuted),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildEmptyState() {
-    return Center(
+    return SizedBox(
+      width: double.infinity,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.person_off_rounded, size: 64, color: kForegroundDisabled),
-          const SizedBox(height: 16),
+          const SizedBox(height: 32),
+          Icon(Icons.person_off_rounded, size: 48, color: kForegroundDisabled),
+          const SizedBox(height: 12),
           Text(
             'No members matched',
-            style: AppTypography.h3.copyWith(color: kForegroundMuted),
+            style: AppTypography.h3.copyWith(color: kForegroundMuted, fontSize: 15),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Text(
               'No trainees with the ${widget.roleName ?? "selected"} role are assigned to this session.',
               textAlign: TextAlign.center,
-              style: AppTypography.caption,
+              style: AppTypography.caption.copyWith(fontSize: 11),
             ),
           ),
-          const SizedBox(height: 24),
-          AppButton(
-            label: 'Go Back',
-            isFullWidth: false,
-            onTap: () => Navigator.of(context).pop(),
-          ),
+          const SizedBox(height: 32),
         ],
       ),
     );

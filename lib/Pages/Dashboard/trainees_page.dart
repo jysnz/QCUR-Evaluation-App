@@ -12,6 +12,8 @@ class TraineesPage extends StatefulWidget {
 class _TraineesPageState extends State<TraineesPage> {
   final supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _trainees = [];
+  List<Map<String, dynamic>> _sessions = [];
+  Map<String, List<Map<String, dynamic>>> _sessionTraineeMap = {};
   bool _isLoading = true;
   String _searchQuery = '';
   String? _roleFilter;
@@ -20,7 +22,7 @@ class _TraineesPageState extends State<TraineesPage> {
   @override
   void initState() {
     super.initState();
-    _fetchTrainees();
+    _fetchData();
     _fetchRoles();
   }
 
@@ -35,39 +37,111 @@ class _TraineesPageState extends State<TraineesPage> {
     }
   }
 
-  Future<void> _fetchTrainees() async {
+  Future<void> _fetchData() async {
     setState(() => _isLoading = true);
     try {
-      final data = await supabase
-          .from('trainees')
-          .select()
-          .order('full_name');
-      setState(() {
-        _trainees = List<Map<String, dynamic>>.from(data);
-        _isLoading = false;
-      });
+      await Future.wait([_fetchTrainees(), _fetchSessions()]);
+      if (mounted) setState(() => _isLoading = false);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  List<Map<String, dynamic>> get _filteredTrainees {
-    return _trainees.where((t) {
-      final matchesSearch = t['full_name']
-          .toString()
-          .toLowerCase()
-          .contains(_searchQuery.toLowerCase());
-      
-      if (_roleFilter == null) return matchesSearch;
-      
-      final List<dynamic> traineeRoles = t['role'] ?? [];
-      final matchesRole = traineeRoles.contains(_roleFilter);
-      
-      return matchesSearch && matchesRole;
-    }).toList();
+  Future<void> _fetchTrainees() async {
+    final data = await supabase
+        .from('trainees')
+        .select()
+        .order('full_name');
+    _trainees = List<Map<String, dynamic>>.from(data);
+  }
+
+  Future<void> _fetchSessions() async {
+    final sessionsData = await supabase
+        .from('training_sessions')
+        .select()
+        .order('date', ascending: false);
+
+    final assignmentsData = await supabase
+        .from('session_trainees')
+        .select();
+
+    _sessions = List<Map<String, dynamic>>.from(sessionsData);
+
+    final Map<String, List<Map<String, dynamic>>> map = {};
+    final assignedIds = <String>{};
+
+    for (var assignment in assignmentsData) {
+      final sessionId = assignment['session_id'] as String;
+      final traineeId = assignment['trainee_id'] as String;
+      assignedIds.add(traineeId);
+
+      final trainee = _trainees.cast<Map<String, dynamic>?>().firstWhere(
+        (t) => t?['id'] == traineeId,
+        orElse: () => null,
+      );
+      if (trainee != null) {
+        map.putIfAbsent(sessionId, () => []).add(trainee);
+      }
+    }
+
+    final unassigned = _trainees.where((t) => !assignedIds.contains(t['id'])).toList();
+    if (unassigned.isNotEmpty) {
+      map['unassigned'] = unassigned;
+    }
+
+    _sessionTraineeMap = map;
+  }
+
+  List<Map<String, dynamic>> _getSessionListItems() {
+    final items = <Map<String, dynamic>>[];
+
+    for (var session in _sessions) {
+      final sid = session['id'] as String;
+      final trainees = _sessionTraineeMap[sid];
+      if (trainees == null || trainees.isEmpty) continue;
+
+      final filtered = trainees.where((t) {
+        final matchesSearch = t['full_name']
+            .toString()
+            .toLowerCase()
+            .contains(_searchQuery.toLowerCase());
+        if (_roleFilter == null) return matchesSearch;
+        final List<dynamic> traineeRoles = t['role'] ?? [];
+        return matchesSearch && traineeRoles.contains(_roleFilter);
+      }).toList();
+
+      if (filtered.isEmpty) continue;
+
+      items.add({'type': 'header', 'name': session['name'] ?? 'Session', 'id': sid});
+      for (var t in filtered) {
+        items.add({'type': 'trainee', 'data': t});
+      }
+    }
+
+    final unassigned = _sessionTraineeMap['unassigned'];
+    if (unassigned != null && unassigned.isNotEmpty) {
+      final filtered = unassigned.where((t) {
+        final matchesSearch = t['full_name']
+            .toString()
+            .toLowerCase()
+            .contains(_searchQuery.toLowerCase());
+        if (_roleFilter == null) return matchesSearch;
+        final List<dynamic> traineeRoles = t['role'] ?? [];
+        return matchesSearch && traineeRoles.contains(_roleFilter);
+      }).toList();
+
+      if (filtered.isNotEmpty) {
+        items.add({'type': 'header', 'name': 'Unassigned', 'id': null});
+        for (var t in filtered) {
+          items.add({'type': 'trainee', 'data': t});
+        }
+      }
+    }
+
+    return items;
   }
 
   @override
@@ -95,7 +169,7 @@ class _TraineesPageState extends State<TraineesPage> {
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator(color: kAccent))
                       : RefreshIndicator(
-                          onRefresh: _fetchTrainees,
+                          onRefresh: _fetchData,
                           color: kAccent,
                           backgroundColor: kSurfaceElevated,
                           child: _trainees.isEmpty
@@ -171,9 +245,9 @@ class _TraineesPageState extends State<TraineesPage> {
   }
 
   Widget _buildTraineesList() {
-    final trainees = _filteredTrainees;
+    final items = _getSessionListItems();
 
-    if (trainees.isEmpty) {
+    if (items.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -188,58 +262,97 @@ class _TraineesPageState extends State<TraineesPage> {
 
     return ListView.builder(
       physics: const AlwaysScrollableScrollPhysics(),
-      itemCount: trainees.length,
+      itemCount: items.length,
       itemBuilder: (context, index) {
-        final trainee = trainees[index];
+        final item = items[index];
+
+        if (item['type'] == 'header') {
+          return Padding(
+            padding: EdgeInsets.only(top: index > 0 ? 16 : 0, bottom: 8),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: kAccent.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(kRadiusSmall),
+                  ),
+                  child: Icon(
+                    item['id'] == null ? Icons.person_off_rounded : Icons.folder_rounded,
+                    size: 14,
+                    color: kAccent,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    item['name'].toString().toUpperCase(),
+                    style: AppTypography.label.copyWith(color: kAccent, fontSize: 11),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final trainee = item['data'] as Map<String, dynamic>;
         final List<dynamic> traineeRoles = trainee['role'] ?? [];
 
         return Padding(
-          padding: const EdgeInsets.only(bottom: 12.0),
+          padding: const EdgeInsets.only(bottom: 6.0),
           child: AppCard(
             padding: EdgeInsets.zero,
             child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              dense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
               leading: Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: kAccent.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(kRadiusSmall),
                 ),
-                child: const Icon(Icons.person_outline_rounded, color: kAccent, size: 20),
+                child: const Icon(Icons.person_outline_rounded, color: kAccent, size: 16),
               ),
-              title: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    trainee['full_name'].toString(),
-                    style: AppTypography.bodyLg.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  if (traineeRoles.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 4,
-                      runSpacing: 4,
-                      children: traineeRoles.map((r) => AppStatusBadge(
-                        label: r.toString(),
-                        color: kAccent,
-                      )).toList(),
-                    ),
-                  ],
-                ],
+              title: Text(
+                trainee['full_name'].toString(),
+                style: AppTypography.body.copyWith(fontWeight: FontWeight.w600, fontSize: 13),
+                overflow: TextOverflow.ellipsis,
               ),
-              subtitle: trainee['email'] != null 
-                  ? Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: Text(
-                        trainee['email'].toString().toLowerCase(), 
-                        style: AppTypography.caption,
-                      ),
-                    ) 
+              subtitle: trainee['email'] != null || traineeRoles.isNotEmpty
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (trainee['email'] != null)
+                          Text(
+                            trainee['email'].toString().toLowerCase(),
+                            style: AppTypography.caption.copyWith(fontSize: 10),
+                          ),
+                        if (traineeRoles.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Wrap(
+                            spacing: 3,
+                            runSpacing: 2,
+                            children: traineeRoles.map((r) => Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: kAccent.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                              child: Text(
+                                r.toString(),
+                                style: TextStyle(color: kAccent, fontSize: 9, fontWeight: FontWeight.w600),
+                              ),
+                            )).toList(),
+                          ),
+                        ],
+                      ],
+                    )
                   : null,
               trailing: IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, color: kError, size: 20),
+                icon: const Icon(Icons.delete_outline_rounded, color: kError, size: 16),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
                 onPressed: () async {
                   final confirm = await showDialog<bool>(
                     context: context,
@@ -250,7 +363,7 @@ class _TraineesPageState extends State<TraineesPage> {
                       actions: [
                         TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
                         TextButton(
-                          onPressed: () => Navigator.pop(context, true), 
+                          onPressed: () => Navigator.pop(context, true),
                           child: const Text('Delete', style: TextStyle(color: kError, fontWeight: FontWeight.bold)),
                         ),
                       ],
@@ -258,7 +371,7 @@ class _TraineesPageState extends State<TraineesPage> {
                   );
                   if (confirm == true) {
                     await supabase.from('trainees').delete().eq('id', trainee['id']);
-                    _fetchTrainees();
+                    _fetchData();
                   }
                 },
               ),

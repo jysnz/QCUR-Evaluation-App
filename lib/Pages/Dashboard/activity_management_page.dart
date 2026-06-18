@@ -22,8 +22,9 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
   final supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _activities = [];
   List<Map<String, dynamic>> _sessionTrainees = [];
-  List<Map<String, dynamic>> _roles = [];
+
   bool _isLoading = true;
+  final Set<String> _subExpandedIds = {};
 
   @override
   void initState() {
@@ -40,9 +41,6 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
           .select('*, roles(name)')
           .eq('session_id', widget.sessionId)
           .order('order_index');
-
-      // Fetch ALL roles for assignment
-      final rolesData = await supabase.from('roles').select().order('name');
 
       // Fetch ONLY trainees assigned to this session with their structured roles
       final sessionMembersData = await supabase
@@ -68,7 +66,6 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
       setState(() {
         _activities = List<Map<String, dynamic>>.from(activitiesData);
         _sessionTrainees = traineesList;
-        _roles = List<Map<String, dynamic>>.from(rolesData);
         
         // Map assignments to activities
         for (var activity in _activities) {
@@ -122,112 +119,6 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
 
     if (result == true) {
       _fetchData();
-    }
-  }
-
-  Future<void> _showRoleAssignmentDialog(Map<String, dynamic> activity) async {
-    String? currentRoleId = activity['target_role_id'];
-
-    final result = await showDialog<String?>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: kSurface,
-          surfaceTintColor: Colors.transparent,
-          title: Text('ASSIGN TO ROLE', style: AppTypography.h3.copyWith(color: kAccent)),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: _roles.isEmpty
-                ? const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.psychology_outlined, color: kForegroundDisabled, size: 40),
-                        SizedBox(height: 16),
-                        Text('NO ROLES DEFINED', style: AppTypography.caption),
-                      ],
-                    ),
-                  )
-                : Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'Select a role to automatically assign all relevant personnel in this session.',
-                        style: TextStyle(color: kForegroundMuted, fontSize: 12),
-                      ),
-                      const SizedBox(height: 16),
-                      Flexible(
-                        child: ListView.builder(
-                          shrinkWrap: true,
-                          itemCount: _roles.length + 1,
-                          itemBuilder: (context, index) {
-                            if (index == 0) {
-                              return RadioListTile<String?>(
-                                title: const Text('MANUAL / ALL', style: AppTypography.body),
-                                value: null,
-                                groupValue: currentRoleId,
-                                activeColor: kAccent,
-                                onChanged: (v) => setDialogState(() => currentRoleId = v),
-                              );
-                            }
-                            final role = _roles[index - 1];
-                            return RadioListTile<String?>(
-                              title: Text(role['name'].toString().toUpperCase(), style: AppTypography.body),
-                              value: role['id'],
-                              groupValue: currentRoleId,
-                              activeColor: kAccent,
-                              onChanged: (v) => setDialogState(() => currentRoleId = v),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(null), // Close without changes
-              child: const Text('CANCEL', style: TextStyle(color: kForegroundMuted)),
-            ),
-            AppButton(
-              label: 'APPLY',
-              onTap: () => Navigator.of(context).pop(currentRoleId ?? 'manual_cleared'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (result != null) {
-      try {
-        final String? newRoleId = result == 'manual_cleared' ? null : result;
-        
-        // Update the activity record
-        final Map<String, dynamic> updateData = {
-          'target_role_id': newRoleId,
-        };
-
-        if (newRoleId != null) {
-          final role = _roles.firstWhere((r) => r['id'] == newRoleId);
-          updateData['target_role'] = role['name'];
-        } else {
-          updateData['target_role'] = null;
-        }
-
-        await supabase.from('activities').update(updateData).eq('id', activity['id']);
-        
-        // If switching to a role, we might want to clear manual assignments?
-        // User said " सिंपली, assign that activity to a role itself"
-        if (newRoleId != null) {
-           await supabase.from('activity_trainees').delete().eq('activity_id', activity['id']);
-        }
-
-        _fetchData();
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-        }
-      }
     }
   }
 
@@ -288,141 +179,123 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
 
   Widget _buildActivityNode(Map<String, dynamic> activity) {
     final subActivities = _activities.where((a) => a['parent_id'] == activity['id']).toList();
-    final isParent = activity['parent_id'] == null;
+    final subExpanded = _subExpandedIds.contains(activity['id']);
+    final roleName = activity['display_role'] ?? activity['target_role'];
 
     return Column(
       children: [
-        AppCard(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          isParent ? 'Parent Activity' : 'Sub-activity',
-                          style: AppTypography.label.copyWith(
-                            color: isParent ? kAccent : kInfo,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          activity['name'].toString(),
-                          style: AppTypography.h3,
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (activity['is_graded'] == true)
-                    const AppStatusBadge(label: 'Graded', color: kAccent),
-                ],
+        GestureDetector(
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => ScoreTraineesPage(
+                  sessionId: widget.sessionId,
+                  activityId: activity['id'],
+                  activityName: activity['name'],
+                  sessionName: widget.sessionName,
+                  roleId: activity['target_role_id'],
+                  roleName: roleName,
+                ),
               ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  if (isParent) ...[
-                    _buildActionButton(
-                      icon: (activity['display_role'] != null || activity['target_role'] != null) ? Icons.psychology_rounded : Icons.group_add_rounded,
-                      label: (activity['display_role'] != null || activity['target_role'] != null)
-                        ? (activity['display_role'] ?? activity['target_role']).toString()
-                        : '${(activity['trainee_ids'] as List).length} assigned',
-                      onTap: () => _showRoleAssignmentDialog(activity),
-                    ),
-                    const SizedBox(width: 8),
-                    _buildActionButton(
-                      icon: Icons.add_circle_outline_rounded,
-                      label: 'Sub',
-                      onTap: () => _navigateToCreateActivity(
-                        parentId: activity['id'],
-                        parentName: activity['name'],
+            ).then((_) => _fetchData());
+          },
+          child: AppCard(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        activity['name'].toString(),
+                        style: AppTypography.body.copyWith(fontWeight: FontWeight.w600, fontSize: 13),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  ] else ...[
-                     const Text('Inherits members from parent', style: TextStyle(color: kForegroundMuted, fontSize: 11, fontStyle: FontStyle.italic)),
+                    if (activity['is_graded'] == true)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: kAccent.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text('GRADED', style: TextStyle(color: kAccent, fontSize: 9, fontWeight: FontWeight.bold)),
+                      ),
                   ],
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline_rounded, color: kError, size: 20),
-                    onPressed: () async {
-                      final confirm = await showDialog<bool>(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          backgroundColor: kSurface,
-                          title: const Text('Delete activity?', style: AppTypography.h3),
-                          content: const Text('This will remove the activity and all its sub-activities.', style: AppTypography.body),
-                          actions: [
-                            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-                            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete', style: TextStyle(color: kError))),
-                          ],
-                        ),
-                      );
-                      if (confirm == true) {
-                        await supabase.from('activities').delete().eq('id', activity['id']);
-                        _fetchData();
-                      }
-                    },
-                  ),
-                ],
-              ),
-              if (activity['is_graded'] == true) ...[
-                const SizedBox(height: 12),
-                _buildActionButton(
-                  icon: Icons.assignment_turned_in_rounded,
-                  label: 'Assess Members',
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => ScoreTraineesPage(
-                        sessionId: widget.sessionId,
-                        activityId: activity['id'],
-                        activityName: activity['name'],
-                        roleId: activity['target_role_id'],
-                        roleName: activity['display_role'] ?? activity['target_role'],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(Icons.psychology_outlined, size: 12, color: roleName != null ? kAccent : kForegroundDisabled),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        roleName ?? 'No role assigned',
+                        style: AppTypography.caption.copyWith(fontSize: 11, color: roleName != null ? kAccent : kForegroundDisabled),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  ),
+                    Text(
+                      'See more',
+                      style: TextStyle(color: kAccent, fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(width: 2),
+                    Icon(Icons.chevron_right_rounded, size: 14, color: kAccent),
+                  ],
                 ),
               ],
-            ],
-          ),
-        ),
-        if (subActivities.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(left: 24.0, top: 12, bottom: 4),
-            child: Column(
-              children: subActivities.map((s) => _buildActivityNode(s)).toList(),
             ),
           ),
-        const SizedBox(height: 12),
+        ),
+        if (subActivities.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  if (subExpanded) {
+                    _subExpandedIds.remove(activity['id']);
+                  } else {
+                    _subExpandedIds.add(activity['id']);
+                  }
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: kBorder.withValues(alpha: 0.3))),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      subExpanded ? Icons.expand_less : Icons.expand_more,
+                      size: 16,
+                      color: kForegroundMuted,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${subActivities.length} sub-activities',
+                      style: AppTypography.caption.copyWith(fontSize: 11, color: kForegroundMuted),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (subExpanded)
+            Padding(
+              padding: const EdgeInsets.only(left: 16, top: 8),
+              child: Column(
+                children: subActivities.map((s) => _buildActivityNode(s)).toList(),
+              ),
+            ),
+        ],
+        const SizedBox(height: 8),
       ],
     );
   }
 
-  Widget _buildActionButton({required IconData icon, required String label, required VoidCallback onTap}) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(kRadiusSmall),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: kSurfaceElevated.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(kRadiusSmall),
-          border: Border.all(color: kBorder.withValues(alpha: 0.3)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: kAccent),
-            const SizedBox(width: 6),
-            Text(label, style: AppTypography.label.copyWith(color: kForeground, fontSize: 10)),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 

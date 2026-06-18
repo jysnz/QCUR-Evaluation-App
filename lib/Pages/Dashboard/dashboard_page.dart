@@ -154,27 +154,16 @@ class _DashboardPageState extends State<DashboardPage> {
                   _buildStatsRow(),
                   const SizedBox(height: 24),
                   Expanded(
-                    child: AppCard(
-                      padding: EdgeInsets.zero,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _buildTableHeader(),
-                          Expanded(
-                            child: _isLoading
-                                ? const Center(child: CircularProgressIndicator(color: kAccent))
-                                : RefreshIndicator(
-                                    onRefresh: _fetchData,
-                                    color: kAccent,
-                                    backgroundColor: kSurfaceElevated,
-                                    child: _sessions.isEmpty
-                                        ? _buildEmptyState()
-                                        : _buildSessionsList(),
-                                  ),
+                    child: _isLoading
+                        ? const Center(child: CircularProgressIndicator(color: kAccent))
+                        : RefreshIndicator(
+                            onRefresh: _fetchData,
+                            color: kAccent,
+                            backgroundColor: kSurfaceElevated,
+                            child: _sessions.isEmpty
+                                ? _buildEmptyState()
+                                : _buildSessionsList(),
                           ),
-                        ],
-                      ),
-                    ),
                   ),
                   const SizedBox(height: 16),
                   AppButton(
@@ -205,101 +194,121 @@ class _DashboardPageState extends State<DashboardPage> {
     return Row(
       children: [
         Expanded(
-          child: _buildStatItem('Total', _sessions.length.toString(), kInfo),
+          child: _buildStatItem('Total', _sessions.length.toString(), kInfo, Icons.auto_awesome_rounded),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: _buildStatItem('Active', _sessions.where((s) => s['status'] == 'active').length.toString(), kAccent),
+          child: _buildStatItem('Active', _sessions.where((s) => s['status'] == 'active').length.toString(), kAccent, Icons.rocket_launch_rounded),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: _buildStatItem('Done', _sessions.where((s) => s['status'] == 'completed').length.toString(), kSuccess),
+          child: _buildStatItem('Done', _sessions.where((s) => s['status'] == 'completed').length.toString(), kSuccess, Icons.task_alt_rounded),
         ),
       ],
     );
   }
 
-  Widget _buildStatItem(String label, String value, Color color) {
+  Widget _buildStatItem(String label, String value, Color color, IconData icon) {
     return AppCard(
       padding: const EdgeInsets.all(16),
       color: kSurface,
-      border: Border.all(color: color.withValues(alpha: 0.1)),
+      border: Border.all(color: color.withValues(alpha: 0.15)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: AppTypography.label.copyWith(color: color)),
-          const SizedBox(height: 8),
-          Text(value, style: AppTypography.h1.copyWith(color: color)),
+          Row(
+            children: [
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 6),
+              Text(label, style: AppTypography.label.copyWith(color: color, fontSize: 10)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(value, style: AppTypography.h1.copyWith(color: color, fontSize: 24)),
         ],
       ),
     );
   }
 
-  Widget _buildTableHeader() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: kForeground.withValues(alpha: 0.03),
-        border: const Border(bottom: BorderSide(color: kBorder)),
-      ),
-      child: Row(
-        children: [
-          Expanded(flex: 3, child: Text('NAME', style: AppTypography.label)),
-          Expanded(flex: 2, child: Text('DATE', style: AppTypography.label)),
-          Expanded(flex: 2, child: Text('STATUS', style: AppTypography.label)),
-        ],
-      ),
-    );
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'active': return kAccent;
+      case 'completed': return kSuccess;
+      case 'planned': return kInfo;
+      default: return kForegroundMuted;
+    }
   }
 
   Widget _buildSessionsList() {
-    return ListView.separated(
+    return ListView.builder(
       physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.only(top: 4),
       itemCount: _sessions.length,
-      separatorBuilder: (context, index) => const Divider(height: 1, color: kBorder),
       itemBuilder: (context, index) {
         final session = _sessions[index];
         final date = DateTime.parse(session['date']);
-        return InkWell(
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => SessionDetailsPage(
-                  sessionId: session['id'],
-                  sessionName: session['name'],
-                ),
+        final color = _statusColor(session['status']);
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: AppCard(
+            padding: EdgeInsets.zero,
+            child: InkWell(
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => SessionDetailsPage(
+                      sessionId: session['id'],
+                      sessionName: session['name'],
+                    ),
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(kRadius),
+              child: Row(
+                children: [
+                  Container(
+                    width: 4,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(kRadius),
+                        bottomLeft: Radius.circular(kRadius),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          session['name'].toString(),
+                          style: AppTypography.body.copyWith(fontWeight: FontWeight.w600, fontSize: 14),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.calendar_today_rounded, size: 11, color: kForegroundDisabled),
+                            const SizedBox(width: 4),
+                            Text(
+                              DateFormat('MMM dd, yyyy').format(date),
+                              style: AppTypography.caption.copyWith(fontSize: 11, color: kForegroundDisabled),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  _buildStatusBadge(session['status']),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.chevron_right_rounded, color: kForegroundDisabled, size: 18),
+                  const SizedBox(width: 12),
+                ],
               ),
-            );
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: Text(
-                    session['name'].toString(),
-                    style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    DateFormat('MMM dd, yyyy').format(date),
-                    style: AppTypography.caption,
-                  ),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: Row(
-                    children: [
-                      _buildStatusBadge(session['status']),
-                      const Spacer(),
-                      const Icon(Icons.chevron_right_rounded, color: kForegroundDisabled, size: 20),
-                    ],
-                  ),
-                ),
-              ],
             ),
           ),
         );
@@ -309,21 +318,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
 
   Widget _buildStatusBadge(String status) {
-    Color color;
-    switch (status) {
-      case 'active':
-        color = kAccent;
-        break;
-      case 'completed':
-        color = kSuccess;
-        break;
-      case 'planned':
-        color = kInfo;
-        break;
-      default:
-        color = kForegroundMuted;
-    }
-    return AppStatusBadge(label: status, color: color);
+    return AppStatusBadge(label: status, color: _statusColor(status));
   }
 
   Widget _buildEmptyState() {
@@ -331,20 +326,28 @@ class _DashboardPageState extends State<DashboardPage> {
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
         SizedBox(height: MediaQuery.of(context).size.height * 0.2),
-        Center(
+        Center( 
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.layers_clear_outlined, size: 48, color: kForegroundMuted.withValues(alpha: 0.2)),
-              const SizedBox(height: 16),
-              Text(
-                'NO SESSIONS YET',
-                style: AppTypography.overline.copyWith(color: kForegroundMuted),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: kSurfaceElevated.withValues(alpha: 0.5),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.layers_clear_outlined, size: 40, color: kForegroundMuted.withValues(alpha: 0.3)),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 20),
               Text(
-                'Start your first session to begin.',
-                style: AppTypography.caption.copyWith(color: kForegroundDisabled),
+                'No Sessions Yet',
+                style: AppTypography.h3.copyWith(color: kForegroundMuted),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Tap the button below to create your first training session.',
+                style: AppTypography.caption,
+                textAlign: TextAlign.center,
               ),
             ],
           ),

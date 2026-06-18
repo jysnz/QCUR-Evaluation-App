@@ -227,52 +227,59 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
         final List<dynamic> traineeRoles = trainee['role'] ?? [];
         
         return Padding(
-          padding: const EdgeInsets.only(bottom: 12.0),
+          padding: const EdgeInsets.only(bottom: 6.0),
           child: AppCard(
             padding: EdgeInsets.zero,
             child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              dense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
               leading: Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: kAccent.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(kRadiusSmall),
                 ),
-                child: const Icon(Icons.person_outline_rounded, color: kAccent, size: 20),
+                child: const Icon(Icons.person_outline_rounded, color: kAccent, size: 16),
               ),
-              title: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    trainee['full_name'].toString(),
-                    style: AppTypography.bodyLg.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  if (traineeRoles.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 4,
-                      runSpacing: 4,
-                      children: traineeRoles.map((r) => AppStatusBadge(
-                        label: r.toString(),
-                        color: kAccent,
-                      )).toList(),
-                    ),
-                  ],
-                ],
+              title: Text(
+                trainee['full_name'].toString(),
+                style: AppTypography.body.copyWith(fontWeight: FontWeight.w600, fontSize: 13),
+                overflow: TextOverflow.ellipsis,
               ),
-              subtitle: trainee['email'] != null 
-                  ? Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: Text(
-                        trainee['email'].toString().toLowerCase(), 
-                        style: AppTypography.caption,
-                      ),
-                    ) 
+              subtitle: trainee['email'] != null || traineeRoles.isNotEmpty
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (trainee['email'] != null)
+                          Text(
+                            trainee['email'].toString().toLowerCase(),
+                            style: AppTypography.caption.copyWith(fontSize: 10),
+                          ),
+                        if (traineeRoles.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Wrap(
+                            spacing: 3,
+                            runSpacing: 2,
+                            children: traineeRoles.map((r) => Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: kAccent.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                              child: Text(
+                                r.toString(),
+                                style: TextStyle(color: kAccent, fontSize: 9, fontWeight: FontWeight.w600),
+                              ),
+                            )).toList(),
+                          ),
+                        ],
+                      ],
+                    )
                   : null,
               trailing: IconButton(
-                icon: const Icon(Icons.person_remove_rounded, color: kError, size: 20),
+                icon: const Icon(Icons.person_remove_rounded, color: kError, size: 16),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
                 tooltip: 'Remove member',
                 onPressed: () async {
                   final confirm = await showDialog<bool>(
