@@ -24,6 +24,16 @@ const kPadding = 16.0;
 const kPaddingLarge = 24.0;
 const kPaddingSmall = 8.0;
 
+// --- ELEVATION ---
+const List<BoxShadow> kCardShadow = [
+  BoxShadow(
+    color: Color(0x28000000),
+    blurRadius: 10,
+    spreadRadius: 0,
+    offset: Offset(0, 3),
+  ),
+];
+
 // --- TYPOGRAPHY (Clean & Friendly) ---
 class AppTypography {
   static const TextStyle h1 = TextStyle(
@@ -169,14 +179,14 @@ class AppCard extends StatelessWidget {
         color: color ?? kSurface,
         borderRadius: BorderRadius.circular(radius ?? kRadius),
         border: border ?? Border.all(color: kBorder.withValues(alpha: 0.5)),
-        boxShadow: boxShadow,
+        boxShadow: boxShadow ?? kCardShadow,
       ),
       child: child,
     );
   }
 }
 
-class AppButton extends StatelessWidget {
+class AppButton extends StatefulWidget {
   final String label;
   final VoidCallback? onTap;
   final bool isLoading;
@@ -199,52 +209,73 @@ class AppButton extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final finalColor = isSecondary ? Colors.transparent : color;
-    final finalTextColor = isSecondary ? kForeground : textColor;
+  State<AppButton> createState() => _AppButtonState();
+}
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      child: Material(
-        color: onTap == null ? kForegroundDisabled.withValues(alpha: 0.3) : finalColor,
-        borderRadius: BorderRadius.circular(kRadiusLarge),
-        child: InkWell(
-          onTap: (isLoading || onTap == null) ? null : onTap,
-          borderRadius: BorderRadius.circular(kRadiusLarge),
-          child: Container(
-            width: isFullWidth ? double.infinity : null,
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-            decoration: BoxDecoration(
+class _AppButtonState extends State<AppButton> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final finalColor = widget.isSecondary ? Colors.transparent : widget.color;
+    final finalTextColor = widget.isSecondary ? kForeground : widget.textColor;
+    final isDisabled = widget.onTap == null;
+
+    return GestureDetector(
+      onTapDown: (_) { if (!isDisabled && !widget.isLoading) setState(() => _pressed = true); },
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.97 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOut,
+        child: AnimatedOpacity(
+          opacity: isDisabled ? 0.5 : 1.0,
+          duration: const Duration(milliseconds: 200),
+          child: Material(
+            color: isDisabled ? kForegroundDisabled.withValues(alpha: 0.3) : finalColor,
+            borderRadius: BorderRadius.circular(kRadiusLarge),
+            child: InkWell(
+              onTap: (widget.isLoading || isDisabled) ? null : widget.onTap,
               borderRadius: BorderRadius.circular(kRadiusLarge),
-              border: isSecondary ? Border.all(color: kBorder) : null,
-            ),
-            child: Center(
-              child: isLoading
-                  ? SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: finalTextColor,
-                      ),
-                    )
-                  : Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (icon != null) ...[
-                          Icon(icon, size: 20, color: finalTextColor),
-                          const SizedBox(width: 12),
-                        ],
-                        Text(
-                          label,
-                          style: TextStyle(
+              splashColor: Colors.white.withValues(alpha: 0.1),
+              highlightColor: Colors.white.withValues(alpha: 0.05),
+              child: Container(
+                width: widget.isFullWidth ? double.infinity : null,
+                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(kRadiusLarge),
+                  border: widget.isSecondary ? Border.all(color: kBorder) : null,
+                ),
+                child: Center(
+                  child: widget.isLoading
+                      ? SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
                             color: finalTextColor,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 16,
                           ),
+                        )
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (widget.icon != null) ...[
+                              Icon(widget.icon, size: 20, color: finalTextColor),
+                              const SizedBox(width: 12),
+                            ],
+                            Text(
+                              widget.label,
+                              style: TextStyle(
+                                color: finalTextColor,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                ),
+              ),
             ),
           ),
         ),

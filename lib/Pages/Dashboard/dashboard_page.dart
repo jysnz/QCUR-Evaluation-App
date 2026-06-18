@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
-import 'package:qcur_evaluation/Pages/Dashboard/create_session_page.dart';
-import 'package:qcur_evaluation/Pages/Dashboard/session_details_page.dart';
-import 'package:qcur_evaluation/Pages/Dashboard/trainees_page.dart';
+import 'package:qcur_evaluation/Pages/Dashboard/Sessions/create_session_page.dart';
+import 'package:qcur_evaluation/Pages/Dashboard/Sessions/session_details_page.dart';
+import 'package:qcur_evaluation/Pages/Dashboard/Trainees/trainees_page.dart';
 import 'package:qcur_evaluation/Pages/Auth/account_page.dart';
 import 'package:intl/intl.dart';
 
@@ -265,11 +265,12 @@ class _DashboardPageState extends State<DashboardPage> {
                 );
               },
               borderRadius: BorderRadius.circular(kRadius),
-              child: Row(
+              child: IntrinsicHeight(
+               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Container(
                     width: 4,
-                    height: 56,
                     decoration: BoxDecoration(
                       color: color,
                       borderRadius: const BorderRadius.only(
@@ -280,27 +281,30 @@ class _DashboardPageState extends State<DashboardPage> {
                   ),
                   const SizedBox(width: 14),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          session['name'].toString(),
-                          style: AppTypography.body.copyWith(fontWeight: FontWeight.w600, fontSize: 14),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(Icons.calendar_today_rounded, size: 11, color: kForegroundDisabled),
-                            const SizedBox(width: 4),
-                            Text(
-                              DateFormat('MMM dd, yyyy').format(date),
-                              style: AppTypography.caption.copyWith(fontSize: 11, color: kForegroundDisabled),
-                            ),
-                          ],
-                        ),
-                      ],
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            session['name'].toString(),
+                            style: AppTypography.body.copyWith(fontWeight: FontWeight.w600, fontSize: 14),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(Icons.calendar_today_rounded, size: 11, color: kForegroundDisabled),
+                              const SizedBox(width: 4),
+                              Text(
+                                DateFormat('MMM dd, yyyy').format(date),
+                                style: AppTypography.caption.copyWith(fontSize: 11, color: kForegroundDisabled),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   _buildStatusBadge(session['status']),
@@ -308,6 +312,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   const Icon(Icons.chevron_right_rounded, color: kForegroundDisabled, size: 18),
                   const SizedBox(width: 12),
                 ],
+               ),
               ),
             ),
           ),
