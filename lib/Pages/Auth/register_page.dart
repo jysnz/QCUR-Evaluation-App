@@ -306,7 +306,7 @@ class _RegisterPageState extends State<RegisterPage> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           automaticallyImplyLeading: false,
-          leading: widget.isGoogleSignUp 
+          leading: widget.isGoogleSignUp
             ? IconButton(
                 icon: const Icon(Icons.logout_rounded, color: Colors.white38),
                 onPressed: () async {
@@ -314,7 +314,10 @@ class _RegisterPageState extends State<RegisterPage> {
                   await Supabase.instance.client.auth.signOut();
                 },
               )
-            : null,
+            : IconButton(
+                icon: const Icon(Icons.arrow_back_rounded, color: Colors.white70),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
         ),
         body: Stack(
           children: [

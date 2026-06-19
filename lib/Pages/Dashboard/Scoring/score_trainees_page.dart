@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:qcur_evaluation/Services/app_cache.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Activities/create_activity_page.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Scoring/score_trainee_detail_page.dart';
@@ -67,26 +68,45 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
   }
 
   Future<void> _fetchTraineesAndResults() async {
-    var query = supabase
-        .from('session_trainees')
-        .select('trainees!inner(*)')
-        .eq('session_id', widget.sessionId);
+    final cache = AppCache.instance;
+    final stKey = widget.roleId != null
+        ? 'st:${widget.sessionId}:${widget.roleId}'
+        : 'st:${widget.sessionId}';
 
-    if (widget.roleId != null) {
-      query = supabase
+    final cachedSt = cache.get<List<dynamic>>(stKey);
+    List<dynamic> traineesData;
+    if (cachedSt != null) {
+      traineesData = cachedSt;
+    } else {
+      var query = supabase
           .from('session_trainees')
-          .select('trainees!inner(*, trainee_roles!inner(role_id))')
-          .eq('session_id', widget.sessionId)
-          .eq('trainees.trainee_roles.role_id', widget.roleId as Object);
+          .select('trainees!inner(*)')
+          .eq('session_id', widget.sessionId);
+
+      if (widget.roleId != null) {
+        query = supabase
+            .from('session_trainees')
+            .select('trainees!inner(*, trainee_roles!inner(role_id))')
+            .eq('session_id', widget.sessionId)
+            .eq('trainees.trainee_roles.role_id', widget.roleId as Object);
+      }
+
+      traineesData = await query;
+      cache.set(stKey, traineesData, ttl: const Duration(minutes: 3));
     }
 
-    final traineesData = await query;
     final traineesList = traineesData.map((m) => m['trainees'] as Map<String, dynamic>).toList();
 
-    final resultsData = await supabase
-        .from('activity_results')
-        .select()
-        .eq('activity_id', widget.activityId);
+    final resultsKey = 'results:${widget.activityId}';
+    final cachedResults = cache.get<List<dynamic>>(resultsKey);
+    final resultsData = cachedResults ??
+        await supabase
+            .from('activity_results')
+            .select()
+            .eq('activity_id', widget.activityId);
+    if (cachedResults == null) {
+      cache.set(resultsKey, resultsData, ttl: const Duration(minutes: 2));
+    }
 
     final Map<String, Map<String, dynamic>> resultsMap = {
       for (var r in resultsData) r['trainee_id']: r
@@ -109,11 +129,15 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
   }
 
   Future<void> _fetchSubActivities() async {
-    final data = await supabase
-        .from('activities')
-        .select('*')
-        .eq('parent_id', widget.activityId)
-        .order('order_index');
+    final subsKey = 'subs:${widget.activityId}';
+    final cached = AppCache.instance.get<List<dynamic>>(subsKey);
+    final data = cached ??
+        await supabase
+            .from('activities')
+            .select('*')
+            .eq('parent_id', widget.activityId)
+            .order('order_index');
+    if (cached == null) AppCache.instance.set(subsKey, data);
 
     setState(() {
       _subActivities = List<Map<String, dynamic>>.from(data);
@@ -518,6 +542,9 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
           );
         }
       }
+
+      AppCache.instance.invalidate('results:${widget.activityId}');
+      AppCache.instance.invalidate('result:${widget.activityId}:$traineeId');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

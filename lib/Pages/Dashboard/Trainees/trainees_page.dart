@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:qcur_evaluation/Services/app_cache.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
+import 'package:qcur_evaluation/Pages/Dashboard/Trainees/trainee_scores_page.dart';
 
 class TraineesPage extends StatefulWidget {
   const TraineesPage({super.key});
@@ -28,7 +30,11 @@ class _TraineesPageState extends State<TraineesPage> {
 
   Future<void> _fetchRoles() async {
     try {
-      final data = await supabase.from('roles').select().order('name');
+      final cached = AppCache.instance.get<List<dynamic>>('roles');
+      final data = cached ?? await supabase.from('roles').select().order('name');
+      if (cached == null) {
+        AppCache.instance.set('roles', data, ttl: const Duration(minutes: 30));
+      }
       setState(() {
         _availableRoles = List<Map<String, dynamic>>.from(data);
       });
@@ -51,22 +57,30 @@ class _TraineesPageState extends State<TraineesPage> {
   }
 
   Future<void> _fetchTrainees() async {
-    final data = await supabase
-        .from('trainees')
-        .select()
-        .order('full_name');
+    final cached = AppCache.instance.get<List<dynamic>>('trainees');
+    final data = cached ??
+        await supabase.from('trainees').select().order('full_name');
+    if (cached == null) AppCache.instance.set('trainees', data);
     _trainees = List<Map<String, dynamic>>.from(data);
   }
 
   Future<void> _fetchSessions() async {
-    final sessionsData = await supabase
-        .from('training_sessions')
-        .select()
-        .order('date', ascending: false);
+    final cache = AppCache.instance;
 
-    final assignmentsData = await supabase
-        .from('session_trainees')
-        .select();
+    final cachedSessions = cache.get<List<dynamic>>('sessions');
+    final sessionsData = cachedSessions ??
+        await supabase
+            .from('training_sessions')
+            .select()
+            .order('date', ascending: false);
+    if (cachedSessions == null) cache.set('sessions', sessionsData);
+
+    final cachedSt = cache.get<List<dynamic>>('all_st');
+    final assignmentsData = cachedSt ??
+        await supabase.from('session_trainees').select();
+    if (cachedSt == null) {
+      cache.set('all_st', assignmentsData, ttl: const Duration(minutes: 3));
+    }
 
     _sessions = List<Map<String, dynamic>>.from(sessionsData);
 
@@ -310,74 +324,96 @@ class _TraineesPageState extends State<TraineesPage> {
           padding: const EdgeInsets.only(bottom: 6.0),
           child: AppCard(
             padding: EdgeInsets.zero,
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              leading: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: kAccent.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(kRadiusSmall),
-                ),
-                child: const Icon(Icons.person_outline_rounded, color: kAccent, size: 16),
-              ),
-              title: Text(
-                trainee['full_name'].toString(),
-                style: AppTypography.body.copyWith(fontWeight: FontWeight.w600, fontSize: 13),
-                overflow: TextOverflow.ellipsis,
-              ),
-              subtitle: trainee['email'] != null || traineeRoles.isNotEmpty
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (trainee['email'] != null)
-                          Text(
-                            trainee['email'].toString().toLowerCase(),
-                            style: AppTypography.caption.copyWith(fontSize: 10),
-                          ),
-                        if (traineeRoles.isNotEmpty) ...[
-                          const SizedBox(height: 2),
-                          Wrap(
-                            spacing: 3,
-                            runSpacing: 2,
-                            children: traineeRoles.map((r) => Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                              decoration: BoxDecoration(
-                                color: kAccent.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(3),
-                              ),
-                              child: Text(
-                                r.toString(),
-                                style: TextStyle(color: kAccent, fontSize: 10, fontWeight: FontWeight.w600),
-                              ),
-                            )).toList(),
-                          ),
-                        ],
-                      ],
-                    )
-                  : null,
-              trailing: IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, color: kError, size: 20),
-                onPressed: () async {
-                  final confirm = await showDialog<bool>(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      backgroundColor: kSurface,
-                      title: const Text('Delete member?', style: AppTypography.h3),
-                      content: Text('Are you sure you want to remove ${trainee['full_name']} from the directory?', style: AppTypography.body),
-                      actions: [
-                        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          child: const Text('Delete', style: TextStyle(color: kError, fontWeight: FontWeight.bold)),
-                        ),
-                      ],
+            child: InkWell(
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => TraineeScoresPage(
+                      traineeId: trainee['id'].toString(),
+                      traineeName: trainee['full_name'].toString(),
                     ),
-                  );
-                  if (confirm == true) {
-                    await supabase.from('trainees').delete().eq('id', trainee['id']);
-                    _fetchData();
-                  }
-                },
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(kRadius),
+              splashColor: kAccent.withValues(alpha: 0.08),
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                leading: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: kAccent.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(kRadiusSmall),
+                  ),
+                  child: const Icon(Icons.person_outline_rounded, color: kAccent, size: 16),
+                ),
+                title: Text(
+                  trainee['full_name'].toString(),
+                  style: AppTypography.body.copyWith(fontWeight: FontWeight.w600, fontSize: 13),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: trainee['email'] != null || traineeRoles.isNotEmpty
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (trainee['email'] != null)
+                            Text(
+                              trainee['email'].toString().toLowerCase(),
+                              style: AppTypography.caption.copyWith(fontSize: 10),
+                            ),
+                          if (traineeRoles.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Wrap(
+                              spacing: 3,
+                              runSpacing: 2,
+                              children: traineeRoles.map((r) => Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: kAccent.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(3),
+                                ),
+                                child: Text(
+                                  r.toString(),
+                                  style: const TextStyle(color: kAccent, fontSize: 10, fontWeight: FontWeight.w600),
+                                ),
+                              )).toList(),
+                            ),
+                          ],
+                        ],
+                      )
+                    : null,
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.chevron_right_rounded, size: 16, color: kForegroundDisabled),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline_rounded, color: kError, size: 18),
+                      onPressed: () async {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            backgroundColor: kSurface,
+                            title: const Text('Delete member?', style: AppTypography.h3),
+                            content: Text('Are you sure you want to remove ${trainee['full_name']} from the directory?', style: AppTypography.body),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                child: const Text('Delete', style: TextStyle(color: kError, fontWeight: FontWeight.bold)),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirm == true) {
+                          await supabase.from('trainees').delete().eq('id', trainee['id']);
+                          AppCache.instance.invalidate('trainees');
+                          AppCache.instance.invalidate('all_st');
+                          _fetchData();
+                        }
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

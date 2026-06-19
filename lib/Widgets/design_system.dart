@@ -284,7 +284,7 @@ class _AppButtonState extends State<AppButton> {
   }
 }
 
-class AppTextField extends StatelessWidget {
+class AppTextField extends StatefulWidget {
   final String label;
   final String hint;
   final TextEditingController controller;
@@ -309,25 +309,49 @@ class AppTextField extends StatelessWidget {
   });
 
   @override
+  State<AppTextField> createState() => _AppTextFieldState();
+}
+
+class _AppTextFieldState extends State<AppTextField> {
+  late bool _obscure;
+
+  @override
+  void initState() {
+    super.initState();
+    _obscure = widget.isObscure;
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(label, style: AppTypography.label),
+          child: Text(widget.label, style: AppTypography.label),
         ),
         TextFormField(
-          controller: controller,
-          obscureText: isObscure,
-          keyboardType: keyboardType,
-          validator: validator,
-          maxLines: maxLines,
-          textAlign: textAlign,
+          controller: widget.controller,
+          obscureText: _obscure,
+          keyboardType: widget.keyboardType,
+          validator: widget.validator,
+          maxLines: widget.isObscure ? 1 : widget.maxLines,
+          textAlign: widget.textAlign,
           style: AppTypography.bodyLg,
           decoration: InputDecoration(
-            prefixIcon: icon != null ? Icon(icon, size: 20, color: kForegroundMuted) : null,
-            hintText: hint,
+            prefixIcon: widget.icon != null ? Icon(widget.icon, size: 20, color: kForegroundMuted) : null,
+            suffixIcon: widget.isObscure
+                ? IconButton(
+                    icon: Icon(
+                      _obscure ? Icons.key_rounded : Icons.key_off_rounded,
+                      size: 20,
+                      color: kForegroundMuted,
+                    ),
+                    onPressed: () => setState(() => _obscure = !_obscure),
+                    splashRadius: 20,
+                  )
+                : null,
+            hintText: widget.hint,
             hintStyle: TextStyle(color: kForegroundMuted.withValues(alpha: 0.5)),
             filled: true,
             fillColor: kSurfaceElevated.withValues(alpha: 0.5),
@@ -383,7 +407,7 @@ class SectionHeader extends StatelessWidget {
             ],
           ),
         ),
-        if (trailing != null) trailing!,
+        ?trailing,
       ],
     );
   }

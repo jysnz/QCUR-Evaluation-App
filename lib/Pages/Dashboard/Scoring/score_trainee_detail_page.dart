@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:qcur_evaluation/Services/app_cache.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 
 class ScoreTraineeDetailPage extends StatefulWidget {
@@ -58,23 +59,40 @@ class _ScoreTraineeDetailPageState extends State<ScoreTraineeDetailPage> {
   Future<void> _fetchResults() async {
     try {
       final traineeId = widget.trainee['id'] as String;
+      final cache = AppCache.instance;
+      const ttl = Duration(minutes: 2);
 
-      final mainResult = await supabase
-          .from('activity_results')
-          .select()
-          .eq('activity_id', widget.activityId)
-          .eq('trainee_id', traineeId)
-          .maybeSingle();
+      final mainKey = 'result:${widget.activityId}:$traineeId';
+      final cachedMain = cache.get<Map<String, dynamic>>(mainKey);
+      Map<String, dynamic>? mainResult;
+      if (cachedMain != null) {
+        mainResult = cachedMain;
+      } else {
+        mainResult = await supabase
+            .from('activity_results')
+            .select()
+            .eq('activity_id', widget.activityId)
+            .eq('trainee_id', traineeId)
+            .maybeSingle();
+        if (mainResult != null) cache.set(mainKey, mainResult, ttl: ttl);
+      }
 
       final subIds = widget.subActivities.map((a) => a['id'] as String).toList();
       List<Map<String, dynamic>> subResults = [];
       if (subIds.isNotEmpty) {
-        final data = await supabase
-            .from('activity_results')
-            .select()
-            .inFilter('activity_id', subIds)
-            .eq('trainee_id', traineeId);
-        subResults = List<Map<String, dynamic>>.from(data);
+        final subKey = 'sub_results:${widget.activityId}:$traineeId';
+        final cachedSub = cache.get<List<dynamic>>(subKey);
+        if (cachedSub != null) {
+          subResults = List<Map<String, dynamic>>.from(cachedSub);
+        } else {
+          final data = await supabase
+              .from('activity_results')
+              .select()
+              .inFilter('activity_id', subIds)
+              .eq('trainee_id', traineeId);
+          subResults = List<Map<String, dynamic>>.from(data);
+          cache.set(subKey, data, ttl: ttl);
+        }
       }
 
       final Map<String, Map<String, dynamic>> subResultsMap = {
@@ -152,6 +170,13 @@ class _ScoreTraineeDetailPageState extends State<ScoreTraineeDetailPage> {
             );
           }
         }
+      }
+
+      AppCache.instance.invalidate('results:${widget.activityId}');
+      AppCache.instance.invalidate('result:${widget.activityId}:$traineeId');
+      AppCache.instance.invalidate('sub_results:${widget.activityId}:$traineeId');
+      for (final sub in widget.subActivities) {
+        AppCache.instance.invalidate('results:${sub['id']}');
       }
 
       if (mounted) {

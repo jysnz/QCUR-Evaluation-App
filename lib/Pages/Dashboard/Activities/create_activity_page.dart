@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:qcur_evaluation/Services/app_cache.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 
 class CreateActivityPage extends StatefulWidget {
@@ -22,7 +23,6 @@ class CreateActivityPage extends StatefulWidget {
 
 class _CreateActivityPageState extends State<CreateActivityPage> {
   final _nameController = TextEditingController();
-  bool _isGraded = false;
   String _scoringDirection = 'higher_is_better';
   String? _targetRoleId;
   bool _isLoading = false;
@@ -41,7 +41,12 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
   Future<void> _fetchRoles() async {
     setState(() => _isFetchingRoles = true);
     try {
-      final data = await supabase.from('roles').select().order('name');
+      final cached = AppCache.instance.get<List<dynamic>>('roles');
+      final data = cached ??
+          await supabase.from('roles').select().order('name');
+      if (cached == null) {
+        AppCache.instance.set('roles', data, ttl: const Duration(minutes: 30));
+      }
       setState(() {
         _roles = List<Map<String, dynamic>>.from(data);
         _isFetchingRoles = false;
@@ -60,9 +65,16 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
       return;
     }
 
+    final isSubActivity = widget.parentId != null;
+    if (!isSubActivity && _targetRoleId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please assign a position to this activity')),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
-      // Get current max order_index for this level
       final currentActivities = await supabase
           .from('activities')
           .select('order_index')
@@ -78,8 +90,8 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
         'session_id': widget.sessionId,
         'parent_id': widget.parentId,
         'name': _nameController.text.trim(),
-        'is_graded': _isGraded,
-        'scoring_direction': _isGraded ? _scoringDirection : null,
+        'is_graded': true,
+        'scoring_direction': _scoringDirection,
         'order_index': nextIndex,
       };
 
@@ -93,6 +105,7 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
       }
 
       await supabase.from('activities').insert(insertData);
+      AppCache.instance.invalidateWhere((k) => k.startsWith('acts:') && k.contains(widget.sessionId));
 
       if (mounted) {
         Navigator.of(context).pop(true);
@@ -113,8 +126,10 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
     final isSubActivity = widget.parentId != null;
 
     return Scaffold(
+      backgroundColor: kBackground,
       appBar: AppBar(
-        backgroundColor: kBackground,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         title: Text(
           isSubActivity ? 'Add Sub-activity' : 'New Activity',
           style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
@@ -141,37 +156,55 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              SectionHeader(
-                                title: 'Configuration',
-                                subtitle: isSubActivity 
-                                    ? 'Creating sub-activity for: ${widget.parentName}' 
-                                    : 'Defining a primary assessment activity',
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: kAccent.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(kRadiusSmall),
+                                    ),
+                                    child: Icon(
+                                      isSubActivity ? Icons.subdirectory_arrow_right_rounded : Icons.add_task_rounded,
+                                      size: 18,
+                                      color: kAccent,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: SectionHeader(
+                                      title: 'Configuration',
+                                      subtitle: isSubActivity
+                                          ? 'Sub-activity of: ${widget.parentName}'
+                                          : 'Defining a primary assessment activity',
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(height: 32),
+                              const SizedBox(height: 28),
                               AppTextField(
                                 label: 'Activity Name',
                                 hint: 'e.g., Technical Assessment, Physical Training...',
                                 controller: _nameController,
+                                icon: Icons.add_task_rounded,
                               ),
                               const SizedBox(height: 24),
-                              if (!isSubActivity) ...[
-                                _buildRoleAssignmentDropdown(),
-                                const SizedBox(height: 24),
-                              ],
-                              _buildGradedToggle(),
-                              if (_isGraded) ...[
-                                const SizedBox(height: 24),
-                                _buildScoringDirectionDropdown(),
-                              ],
+                              _buildScoringDirectionDropdown(),
+                              const SizedBox(height: 24),
+                              if (!isSubActivity)
+                                _buildRoleAssignmentDropdown()
+                              else if (widget.inheritedRoleId != null)
+                                _buildLockedRoleDisplay(),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 24),
-                        _buildProTip(),
+                        const SizedBox(height: 16),
+                        _buildProTip(isSubActivity),
                       ],
                     ),
                   ),
                 ),
+                const SizedBox(height: 12),
                 AppButton(
                   label: isSubActivity ? 'Create Sub-activity' : 'Create Activity',
                   onTap: _saveActivity,
@@ -190,73 +223,82 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Assign to Position (Optional)', style: AppTypography.label),
+        Text('Assign to Position', style: AppTypography.label),
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
             color: kSurfaceElevated,
-            borderRadius: BorderRadius.circular(kRadiusSmall),
+            borderRadius: BorderRadius.circular(kRadius),
             border: Border.all(color: kBorder.withValues(alpha: 0.5)),
           ),
           child: DropdownButtonHideUnderline(
-            child: _isFetchingRoles 
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: kAccent))),
-                )
-              : DropdownButton<String?>(
-                  value: _targetRoleId,
-                  isExpanded: true,
-                  hint: const Text('Assign to all members', style: TextStyle(color: kForegroundDisabled, fontSize: 14)),
-                  dropdownColor: kSurfaceElevated,
-                  style: AppTypography.bodyLg.copyWith(fontWeight: FontWeight.bold),
-                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kAccent),
-                  items: [
-                    const DropdownMenuItem<String?>(
-                      value: null,
-                      child: Text('Manual Assignment / All'),
-                    ),
-                    ..._roles.map((role) => DropdownMenuItem(
+            child: _isFetchingRoles
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: kAccent))),
+                  )
+                : DropdownButton<String>(
+                    value: _targetRoleId,
+                    isExpanded: true,
+                    hint: const Text('Select a position', style: TextStyle(color: kForegroundDisabled, fontSize: 14)),
+                    dropdownColor: kSurfaceElevated,
+                    style: AppTypography.bodyLg.copyWith(fontWeight: FontWeight.bold),
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kAccent),
+                    items: _roles.map((role) => DropdownMenuItem(
                       value: role['id'].toString(),
                       child: Text(role['name'].toString()),
-                    )),
-                  ],
-                  onChanged: (v) => setState(() => _targetRoleId = v),
-                ),
+                    )).toList(),
+                    onChanged: (v) => setState(() => _targetRoleId = v),
+                  ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildGradedToggle() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: kSurfaceElevated,
-        borderRadius: BorderRadius.circular(kRadiusSmall),
-        border: Border.all(color: kBorder.withValues(alpha: 0.5)),
-      ),
-      child: Row(
-        children: [
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildLockedRoleDisplay() {
+    final inheritedRole = _roles.cast<Map<String, dynamic>?>().firstWhere(
+      (r) => r?['id'].toString() == widget.inheritedRoleId,
+      orElse: () => null,
+    );
+    final roleName = inheritedRole?['name']?.toString() ?? 'Inherited from parent';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Assigned Role', style: AppTypography.label),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: kAccent.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(kRadiusSmall),
+            border: Border.all(color: kAccent.withValues(alpha: 0.3)),
+          ),
+          child: Row(
             children: [
-              Text('Graded Evaluation', style: TextStyle(color: kForeground, fontWeight: FontWeight.bold, fontSize: 14)),
-              SizedBox(height: 4),
-              Text('Enable to assign scores and metrics', style: TextStyle(color: kForegroundMuted, fontSize: 12)),
+              const Icon(Icons.lock_outline_rounded, size: 16, color: kAccent),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      roleName,
+                      style: AppTypography.bodyLg.copyWith(color: kAccent, fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      'Inherited from parent activity',
+                      style: AppTypography.caption.copyWith(fontSize: 10),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
-          const Spacer(),
-          Switch.adaptive(
-            value: _isGraded,
-            onChanged: (v) => setState(() => _isGraded = v),
-            activeColor: kAccent,
-            activeTrackColor: kAccent.withValues(alpha: 0.2),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -270,7 +312,7 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
             color: kSurfaceElevated,
-            borderRadius: BorderRadius.circular(kRadiusSmall),
+            borderRadius: BorderRadius.circular(kRadius),
             border: Border.all(color: kBorder.withValues(alpha: 0.5)),
           ),
           child: DropdownButtonHideUnderline(
@@ -298,19 +340,21 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
     );
   }
 
-  Widget _buildProTip() {
+  Widget _buildProTip(bool isSubActivity) {
     return AppCard(
       color: kInfo.withValues(alpha: 0.05),
       border: Border.all(color: kInfo.withValues(alpha: 0.2)),
       padding: const EdgeInsets.all(12),
-      child: const Row(
+      child: Row(
         children: [
-          Icon(Icons.lightbulb_outline_rounded, color: kInfo, size: 20),
-          SizedBox(width: 12),
+          const Icon(Icons.lightbulb_outline_rounded, color: kInfo, size: 20),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
-              'Sub-activities inherit member assignments from their parent activity.',
-              style: TextStyle(color: kForegroundMuted, fontSize: 12),
+              isSubActivity
+                  ? 'Sub-activities inherit their role assignment from the parent activity.'
+                  : 'When an activity has sub-activities, only the sub-activities are scored. The parent acts as a grouping header.',
+              style: const TextStyle(color: kForegroundMuted, fontSize: 12),
             ),
           ),
         ],

@@ -1,6 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Sessions/session_details_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:qcur_evaluation/Services/app_cache.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 import 'package:intl/intl.dart';
 
@@ -63,6 +64,7 @@ class _CreateSessionPageState extends State<CreateSessionPage> {
         'creator_id': user.id,
         'status': 'planned',
       }).select().single();
+      AppCache.instance.invalidate('sessions');
 
       if (mounted) {
         Navigator.of(context).pushReplacement(

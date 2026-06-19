@@ -1,5 +1,6 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:qcur_evaluation/Services/app_cache.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Sessions/create_session_page.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Sessions/session_details_page.dart';
@@ -15,6 +16,64 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
+  int _currentIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: kBackground,
+      body: IndexedStack(
+        index: _currentIndex,
+        children: const [
+          _SessionsTab(),
+          TraineesPage(),
+        ],
+      ),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: kSurface,
+          border: Border(top: BorderSide(color: kBorder.withValues(alpha: 0.3))),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x40000000),
+              blurRadius: 20,
+              offset: Offset(0, -4),
+            ),
+          ],
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: (index) => setState(() => _currentIndex = index),
+          backgroundColor: kSurface,
+          selectedItemColor: kAccent,
+          unselectedItemColor: kForegroundDisabled,
+          selectedLabelStyle: AppTypography.label.copyWith(fontSize: 10),
+          unselectedLabelStyle: AppTypography.label.copyWith(fontSize: 10, color: kForegroundDisabled),
+          type: BottomNavigationBarType.fixed,
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.layers_rounded),
+              label: 'Sessions',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.people_outline_rounded),
+              label: 'Members',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SessionsTab extends StatefulWidget {
+  const _SessionsTab();
+
+  @override
+  State<_SessionsTab> createState() => _SessionsTabState();
+}
+
+class _SessionsTabState extends State<_SessionsTab> {
   final supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _sessions = [];
   Map<String, dynamic>? _userProfile;
@@ -29,21 +88,32 @@ class _DashboardPageState extends State<DashboardPage> {
   Future<void> _fetchData() async {
     setState(() => _isLoading = true);
     try {
+      final cache = AppCache.instance;
       final user = supabase.auth.currentUser;
       if (user != null) {
-        final profileData = await supabase
-            .from('user_accounts')
-            .select()
-            .eq('id', user.id)
-            .single();
-        _userProfile = profileData;
+        final userKey = 'user:${user.id}';
+        final cachedProfile = cache.get<Map<String, dynamic>>(userKey);
+        if (cachedProfile != null) {
+          _userProfile = cachedProfile;
+        } else {
+          final profileData = await supabase
+              .from('user_accounts')
+              .select()
+              .eq('id', user.id)
+              .single();
+          cache.set(userKey, profileData);
+          _userProfile = profileData;
+        }
       }
 
-      final sessionsData = await supabase
-          .from('training_sessions')
-          .select()
-          .order('date', ascending: false);
-      
+      final cachedSessions = cache.get<List<dynamic>>('sessions');
+      final sessionsData = cachedSessions ??
+          await supabase
+              .from('training_sessions')
+              .select()
+              .order('date', ascending: false);
+      if (cachedSessions == null) cache.set('sessions', sessionsData);
+
       setState(() {
         _sessions = List<Map<String, dynamic>>.from(sessionsData);
         _isLoading = false;
@@ -60,10 +130,12 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Future<void> _fetchSessions() async {
     try {
+      AppCache.instance.invalidate('sessions');
       final data = await supabase
           .from('training_sessions')
           .select()
           .order('date', ascending: false);
+      AppCache.instance.set('sessions', data);
       setState(() {
         _sessions = List<Map<String, dynamic>>.from(data);
       });
@@ -127,18 +199,21 @@ class _DashboardPageState extends State<DashboardPage> {
         actions: [
           IconButton(
             onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (context) => const TraineesPage()),
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Notifications coming soon'),
+                  duration: Duration(seconds: 2),
+                ),
               );
             },
-            icon: const Icon(Icons.people_outline_rounded, color: kForeground),
+            icon: const Icon(Icons.notifications_none_rounded, color: kForeground),
           ),
           const SizedBox(width: 8),
         ],
       ),
       body: Stack(
         children: [
-          const AppBackground(child: SizedBox.expand()),
+          const TechnicalGridBackground(),
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: kPadding),
@@ -251,68 +326,80 @@ class _DashboardPageState extends State<DashboardPage> {
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: AppCard(
-            padding: EdgeInsets.zero,
-            child: InkWell(
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => SessionDetailsPage(
-                      sessionId: session['id'],
-                      sessionName: session['name'],
-                    ),
-                  ),
-                );
-              },
-              borderRadius: BorderRadius.circular(kRadius),
-              child: IntrinsicHeight(
-               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(
-                    width: 4,
-                    decoration: BoxDecoration(
-                      color: color,
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(kRadius),
-                        bottomLeft: Radius.circular(kRadius),
+          child: Material(
+            color: kSurface,
+            borderRadius: BorderRadius.circular(kRadius),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(kRadius),
+                border: Border.all(color: kBorder.withValues(alpha: 0.5)),
+                boxShadow: kCardShadow,
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(kRadius),
+                child: InkWell(
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => SessionDetailsPage(
+                          sessionId: session['id'],
+                          sessionName: session['name'],
+                        ),
                       ),
+                    );
+                  },
+                  splashColor: kAccent.withValues(alpha: 0.06),
+                  highlightColor: kAccent.withValues(alpha: 0.03),
+                  child: IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Container(
+                          width: 4,
+                          color: color,
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  session['name'].toString(),
+                                  style: AppTypography.body.copyWith(fontWeight: FontWeight.w600, fontSize: 14),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Icon(Icons.calendar_today_rounded, size: 11, color: kForegroundDisabled),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      DateFormat('MMM dd, yyyy').format(date),
+                                      style: AppTypography.caption.copyWith(fontSize: 11, color: kForegroundDisabled),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: AppStatusBadge(label: session['status'], color: color),
+                          ),
+                        ),
+                        const Center(
+                          child: Icon(Icons.chevron_right_rounded, color: kForegroundDisabled, size: 18),
+                        ),
+                        const SizedBox(width: 12),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            session['name'].toString(),
-                            style: AppTypography.body.copyWith(fontWeight: FontWeight.w600, fontSize: 14),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(Icons.calendar_today_rounded, size: 11, color: kForegroundDisabled),
-                              const SizedBox(width: 4),
-                              Text(
-                                DateFormat('MMM dd, yyyy').format(date),
-                                style: AppTypography.caption.copyWith(fontSize: 11, color: kForegroundDisabled),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  _buildStatusBadge(session['status']),
-                  const SizedBox(width: 8),
-                  const Icon(Icons.chevron_right_rounded, color: kForegroundDisabled, size: 18),
-                  const SizedBox(width: 12),
-                ],
-               ),
+                ),
               ),
             ),
           ),
@@ -321,17 +408,12 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-
-  Widget _buildStatusBadge(String status) {
-    return AppStatusBadge(label: status, color: _statusColor(status));
-  }
-
   Widget _buildEmptyState() {
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
         SizedBox(height: MediaQuery.of(context).size.height * 0.2),
-        Center( 
+        Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [

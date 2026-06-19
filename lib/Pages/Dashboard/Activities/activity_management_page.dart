@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:qcur_evaluation/Services/app_cache.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Activities/create_activity_page.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Scoring/score_trainees_page.dart';
@@ -35,33 +36,49 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
   Future<void> _fetchData() async {
     setState(() => _isLoading = true);
     try {
+      final cache = AppCache.instance;
+      final actsKey = 'acts:${widget.sessionId}';
+      final stKey = 'st_full:${widget.sessionId}';
+      const assignKey = 'act_assignments';
+
       // Fetch activities with role info
-      final activitiesData = await supabase
-          .from('activities')
-          .select('*, roles(name)')
-          .eq('session_id', widget.sessionId)
-          .order('order_index');
+      final cachedActs = cache.get<List<dynamic>>(actsKey);
+      final activitiesData = cachedActs ??
+          await supabase
+              .from('activities')
+              .select('*, roles(name)')
+              .eq('session_id', widget.sessionId)
+              .order('order_index');
+      if (cachedActs == null) cache.set(actsKey, activitiesData);
 
       // Fetch ONLY trainees assigned to this session with their structured roles
-      final sessionMembersData = await supabase
-          .from('session_trainees')
-          .select('''
-            trainee_id, 
-            trainees!inner (
-              *,
-              trainee_roles (
-                role_id
-              )
-            )
-          ''')
-          .eq('session_id', widget.sessionId);
+      final cachedSt = cache.get<List<dynamic>>(stKey);
+      final sessionMembersData = cachedSt ??
+          await supabase
+              .from('session_trainees')
+              .select('''
+                trainee_id,
+                trainees!inner (
+                  *,
+                  trainee_roles (
+                    role_id
+                  )
+                )
+              ''')
+              .eq('session_id', widget.sessionId);
+      if (cachedSt == null) {
+        cache.set(stKey, sessionMembersData, ttl: const Duration(minutes: 3));
+      }
 
-      final traineesList = sessionMembersData.map((m) => m['trainees'] as Map<String, dynamic>).toList();
+      final traineesList = (sessionMembersData as List<dynamic>)
+          .map((m) => m['trainees'] as Map<String, dynamic>)
+          .toList();
 
       // Fetch manual activity assignments
-      final assignmentsData = await supabase
-          .from('activity_trainees')
-          .select('activity_id, trainee_id');
+      final cachedAssign = cache.get<List<dynamic>>(assignKey);
+      final assignmentsData = cachedAssign ??
+          await supabase.from('activity_trainees').select('activity_id, trainee_id');
+      if (cachedAssign == null) cache.set(assignKey, assignmentsData);
 
       setState(() {
         _activities = List<Map<String, dynamic>>.from(activitiesData);
@@ -106,13 +123,14 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
     }
   }
 
-  void _navigateToCreateActivity({String? parentId, String? parentName}) async {
+  void _navigateToCreateActivity({String? parentId, String? parentName, String? inheritedRoleId}) async {
     final result = await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => CreateActivityPage(
           sessionId: widget.sessionId,
           parentId: parentId,
           parentName: parentName,
+          inheritedRoleId: inheritedRoleId,
         ),
       ),
     );
@@ -181,80 +199,127 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
     final subActivities = _activities.where((a) => a['parent_id'] == activity['id']).toList();
     final subExpanded = _subExpandedIds.contains(activity['id']);
     final roleName = activity['display_role'] ?? activity['target_role'];
+    final hasSubActivities = subActivities.isNotEmpty;
+    final isParent = activity['parent_id'] == null;
 
     return Column(
       children: [
         AppCard(
           padding: EdgeInsets.zero,
-          child: InkWell(
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => ScoreTraineesPage(
-                    sessionId: widget.sessionId,
-                    activityId: activity['id'],
-                    activityName: activity['name'],
-                    sessionName: widget.sessionName,
-                    roleId: activity['target_role_id'],
-                    roleName: roleName,
+          color: hasSubActivities ? kSurfaceElevated.withValues(alpha: 0.6) : kSurface,
+          child: hasSubActivities
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: kAccent.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Icon(Icons.folder_outlined, size: 13, color: kAccent),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              activity['name'].toString(),
+                              style: AppTypography.body.copyWith(fontWeight: FontWeight.w700, fontSize: 13, color: kForeground),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: kInfo.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text('GROUP', style: TextStyle(color: kInfo, fontSize: 9, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                      if (roleName != null) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.psychology_outlined, size: 11, color: kAccent),
+                            const SizedBox(width: 4),
+                            Text(roleName, style: AppTypography.caption.copyWith(fontSize: 10, color: kAccent)),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                )
+              : InkWell(
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => ScoreTraineesPage(
+                          sessionId: widget.sessionId,
+                          activityId: activity['id'],
+                          activityName: activity['name'],
+                          sessionName: widget.sessionName,
+                          roleId: activity['target_role_id'],
+                          roleName: roleName,
+                        ),
+                      ),
+                    ).then((_) => _fetchData());
+                  },
+                  borderRadius: BorderRadius.circular(kRadius),
+                  splashColor: kAccent.withValues(alpha: 0.08),
+                  highlightColor: kAccent.withValues(alpha: 0.04),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                activity['name'].toString(),
+                                style: AppTypography.body.copyWith(fontWeight: FontWeight.w600, fontSize: 13),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (activity['is_graded'] == true)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: kAccent.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text('GRADED', style: TextStyle(color: kAccent, fontSize: 9, fontWeight: FontWeight.bold)),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.psychology_outlined, size: 12, color: roleName != null ? kAccent : kForegroundDisabled),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                roleName ?? 'No role assigned',
+                                style: AppTypography.caption.copyWith(fontSize: 11, color: roleName != null ? kAccent : kForegroundDisabled),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Text('See more', style: TextStyle(color: kAccent, fontSize: 11, fontWeight: FontWeight.w600)),
+                            const SizedBox(width: 2),
+                            const Icon(Icons.chevron_right_rounded, size: 14, color: kAccent),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ).then((_) => _fetchData());
-            },
-            borderRadius: BorderRadius.circular(kRadius),
-            splashColor: kAccent.withValues(alpha: 0.08),
-            highlightColor: kAccent.withValues(alpha: 0.04),
-            child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        activity['name'].toString(),
-                        style: AppTypography.body.copyWith(fontWeight: FontWeight.w600, fontSize: 13),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (activity['is_graded'] == true)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: kAccent.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text('GRADED', style: TextStyle(color: kAccent, fontSize: 9, fontWeight: FontWeight.bold)),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(Icons.psychology_outlined, size: 12, color: roleName != null ? kAccent : kForegroundDisabled),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        roleName ?? 'No role assigned',
-                        style: AppTypography.caption.copyWith(fontSize: 11, color: roleName != null ? kAccent : kForegroundDisabled),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Text(
-                      'See more',
-                      style: TextStyle(color: kAccent, fontSize: 11, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(width: 2),
-                    Icon(Icons.chevron_right_rounded, size: 14, color: kAccent),
-                  ],
-                ),
-              ],
-            ),
-          ),
         ),
-        ),
-        if (subActivities.isNotEmpty) ...[
+        if (isParent) ...[
           Material(
             color: Colors.transparent,
             child: InkWell(
@@ -277,19 +342,45 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
                     AnimatedRotation(
                       turns: subExpanded ? 0.0 : -0.25,
                       duration: const Duration(milliseconds: 200),
-                      child: Icon(Icons.expand_more, size: 16, color: kForegroundMuted),
+                      child: const Icon(Icons.expand_more, size: 16, color: kForegroundMuted),
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      '${subActivities.length} sub-activities',
+                      subActivities.isEmpty
+                          ? 'No sub-activities'
+                          : '${subActivities.length} sub-activit${subActivities.length == 1 ? 'y' : 'ies'}',
                       style: AppTypography.caption.copyWith(fontSize: 11, color: kForegroundMuted),
+                    ),
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: () => _navigateToCreateActivity(
+                        parentId: activity['id'],
+                        parentName: activity['name'],
+                        inheritedRoleId: activity['target_role_id'] as String?,
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: kAccent.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(kRadiusSmall),
+                          border: Border.all(color: kAccent.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.add_rounded, size: 12, color: kAccent),
+                            const SizedBox(width: 4),
+                            Text('Add Sub-activity', style: TextStyle(color: kAccent, fontSize: 10, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
           ),
-          if (subExpanded)
+          if (subExpanded && subActivities.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(left: 16, top: 8),
               child: Column(

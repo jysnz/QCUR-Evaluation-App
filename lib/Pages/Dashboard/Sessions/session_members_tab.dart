@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:qcur_evaluation/Services/app_cache.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Trainees/add_trainee_page.dart';
 
@@ -32,7 +33,11 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
 
   Future<void> _fetchRoles() async {
     try {
-      final data = await supabase.from('roles').select().order('name');
+      final cached = AppCache.instance.get<List<dynamic>>('roles');
+      final data = cached ?? await supabase.from('roles').select().order('name');
+      if (cached == null) {
+        AppCache.instance.set('roles', data, ttl: const Duration(minutes: 30));
+      }
       setState(() {
         _availableRoles = List<Map<String, dynamic>>.from(data);
       });
@@ -44,17 +49,10 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
   Future<void> _fetchData() async {
     setState(() => _isLoading = true);
     try {
-      // Fetch all trainees
-      final allTraineesData = await supabase
-          .from('trainees')
-          .select()
-          .order('full_name');
-
-      // Fetch session members
-      await supabase
-          .from('session_trainees')
-          .select('trainee_id')
-          .eq('session_id', widget.sessionId);
+      final cached = AppCache.instance.get<List<dynamic>>('trainees');
+      final allTraineesData = cached ??
+          await supabase.from('trainees').select().order('full_name');
+      if (cached == null) AppCache.instance.set('trainees', allTraineesData);
 
       setState(() {
         _allTrainees = List<Map<String, dynamic>>.from(allTraineesData);
@@ -304,6 +302,8 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
                           .delete()
                           .eq('session_id', widget.sessionId)
                           .eq('trainee_id', id);
+                      AppCache.instance.invalidate('trainees');
+                      AppCache.instance.invalidate('st_full:${widget.sessionId}');
                       _fetchData();
                     } catch (e) {
                       if (mounted) {
