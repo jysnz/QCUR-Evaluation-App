@@ -3,6 +3,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qcur_evaluation/Services/app_cache.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 
+class _SubActivityDraft {
+  final TextEditingController nameController = TextEditingController();
+  String scoringDirection = 'higher_is_better';
+  _SubActivityDraft();
+}
+
 class CreateActivityPage extends StatefulWidget {
   final String sessionId;
   final String? parentId;
@@ -30,12 +36,22 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
   final supabase = Supabase.instance.client;
 
   List<Map<String, dynamic>> _roles = [];
+  final List<_SubActivityDraft> _subDrafts = [];
 
   @override
   void initState() {
     super.initState();
     _targetRoleId = widget.inheritedRoleId;
     _fetchRoles();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    for (final d in _subDrafts) {
+      d.nameController.dispose();
+    }
+    super.dispose();
   }
 
   Future<void> _fetchRoles() async {
@@ -73,6 +89,14 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
       return;
     }
 
+    final namedSubs = _subDrafts.where((d) => d.nameController.text.trim().isNotEmpty).toList();
+    if (_subDrafts.isNotEmpty && namedSubs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a name for each sub-activity or remove empty ones')),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
       final currentActivities = await supabase
@@ -90,7 +114,7 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
         'session_id': widget.sessionId,
         'parent_id': widget.parentId,
         'name': _nameController.text.trim(),
-        'is_graded': true,
+        'is_graded': namedSubs.isEmpty,
         'scoring_direction': _scoringDirection,
         'order_index': nextIndex,
       };
@@ -104,7 +128,29 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
         if (role != null) insertData['target_role'] = role['name'];
       }
 
-      await supabase.from('activities').insert(insertData);
+      final parentData = await supabase.from('activities').insert(insertData).select().single();
+      final parentId = parentData['id'] as String;
+
+      if (namedSubs.isNotEmpty) {
+        final subInserts = namedSubs.asMap().entries.map((e) {
+          final Map<String, dynamic> sub = {
+            'session_id': widget.sessionId,
+            'parent_id': parentId,
+            'name': e.value.nameController.text.trim(),
+            'is_graded': true,
+            'scoring_direction': e.value.scoringDirection,
+            'order_index': e.key,
+          };
+          if (_targetRoleId != null) {
+            sub['target_role_id'] = _targetRoleId;
+            sub['target_role'] = insertData['target_role'];
+          }
+          return sub;
+        }).toList();
+
+        await supabase.from('activities').insert(subInserts);
+      }
+
       AppCache.instance.invalidateWhere((k) => k.startsWith('acts:') && k.contains(widget.sessionId));
 
       if (mounted) {
@@ -151,6 +197,7 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Parent activity config card
                         AppCard(
                           padding: const EdgeInsets.all(kPaddingLarge),
                           child: Column(
@@ -198,6 +245,13 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
                             ],
                           ),
                         ),
+
+                        // Sub-activities section (only for parent activities)
+                        if (!isSubActivity) ...[
+                          const SizedBox(height: 16),
+                          _buildSubActivitiesSection(),
+                        ],
+
                         const SizedBox(height: 16),
                         _buildProTip(isSubActivity),
                       ],
@@ -213,6 +267,183 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubActivitiesSection() {
+    return AppCard(
+      padding: const EdgeInsets.all(kPaddingLarge),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: kInfo.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(kRadiusSmall),
+                ),
+                child: const Icon(Icons.account_tree_outlined, size: 18, color: kInfo),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: SectionHeader(
+                  title: 'Sub-activities',
+                  subtitle: 'Optional — break this activity into steps',
+                ),
+              ),
+            ],
+          ),
+          if (_subDrafts.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            ...List.generate(_subDrafts.length, (i) => _buildSubActivityRow(i)),
+          ],
+          const SizedBox(height: 16),
+          GestureDetector(
+            onTap: () {
+              setState(() => _subDrafts.add(_SubActivityDraft()));
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: kAccent.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(kRadius),
+                border: Border.all(
+                  color: kAccent.withValues(alpha: 0.3),
+                  style: BorderStyle.solid,
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.add_rounded, size: 18, color: kAccent),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Add Sub-activity',
+                    style: AppTypography.body.copyWith(color: kAccent, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubActivityRow(int index) {
+    final draft = _subDrafts[index];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: kSurfaceElevated,
+          borderRadius: BorderRadius.circular(kRadius),
+          border: Border.all(color: kBorder.withValues(alpha: 0.4)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: kAccent.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      '${index + 1}',
+                      style: AppTypography.caption.copyWith(color: kAccent, fontWeight: FontWeight.bold, fontSize: 11),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: draft.nameController,
+                    style: AppTypography.body.copyWith(fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: 'Sub-activity name...',
+                      hintStyle: AppTypography.label.copyWith(color: kForegroundDisabled),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () {
+                    draft.nameController.dispose();
+                    setState(() => _subDrafts.removeAt(index));
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Icon(Icons.close_rounded, size: 18, color: kForegroundDisabled.withValues(alpha: 0.6)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const SizedBox(width: 32),
+                _buildScoringToggle(draft),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScoringToggle(_SubActivityDraft draft) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('Score: ', style: AppTypography.caption.copyWith(fontSize: 11)),
+        _scoringChip(
+          label: 'Higher ▲',
+          value: 'higher_is_better',
+          draft: draft,
+        ),
+        const SizedBox(width: 6),
+        _scoringChip(
+          label: 'Lower ▼',
+          value: 'lower_is_better',
+          draft: draft,
+        ),
+      ],
+    );
+  }
+
+  Widget _scoringChip({required String label, required String value, required _SubActivityDraft draft}) {
+    final isSelected = draft.scoringDirection == value;
+    return GestureDetector(
+      onTap: () => setState(() => draft.scoringDirection = value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: isSelected ? kAccent.withValues(alpha: 0.12) : Colors.transparent,
+          borderRadius: BorderRadius.circular(kRadiusSmall),
+          border: Border.all(
+            color: isSelected ? kAccent : kBorder.withValues(alpha: 0.4),
+          ),
+        ),
+        child: Text(
+          label,
+          style: AppTypography.caption.copyWith(
+            color: isSelected ? kAccent : kForegroundMuted,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            fontSize: 11,
           ),
         ),
       ),

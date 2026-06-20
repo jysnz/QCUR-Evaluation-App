@@ -46,7 +46,8 @@ class _TraineesPageState extends State<TraineesPage> {
   Future<void> _fetchData() async {
     setState(() => _isLoading = true);
     try {
-      await Future.wait([_fetchTrainees(), _fetchSessions()]);
+      await _fetchTrainees();
+      await _fetchSessions();
       if (mounted) setState(() => _isLoading = false);
     } catch (e) {
       if (mounted) {

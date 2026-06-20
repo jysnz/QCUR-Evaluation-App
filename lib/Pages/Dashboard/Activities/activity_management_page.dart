@@ -70,7 +70,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
         cache.set(stKey, sessionMembersData, ttl: const Duration(minutes: 3));
       }
 
-      final traineesList = (sessionMembersData as List<dynamic>)
+      final traineesList = sessionMembersData
           .map((m) => m['trainees'] as Map<String, dynamic>)
           .toList();
 

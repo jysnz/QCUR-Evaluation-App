@@ -11,7 +11,12 @@ class AppCache {
       _store.remove(key);
       return null;
     }
-    return entry.data as T?;
+    try {
+      return entry.data as T?;
+    } catch (_) {
+      _store.remove(key);
+      return null;
+    }
   }
 
   void set(String key, dynamic data, {Duration ttl = const Duration(minutes: 5)}) {
