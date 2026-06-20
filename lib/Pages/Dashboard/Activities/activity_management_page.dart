@@ -207,14 +207,32 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
         AppCard(
           padding: EdgeInsets.zero,
           color: hasSubActivities ? kSurfaceElevated.withValues(alpha: 0.6) : kSurface,
-          child: hasSubActivities
-              ? Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
+          child: InkWell(
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => ScoreTraineesPage(
+                      sessionId: widget.sessionId,
+                      activityId: activity['id'],
+                      activityName: activity['name'],
+                      sessionName: widget.sessionName,
+                      roleId: activity['target_role_id'],
+                      roleName: roleName,
+                    ),
+                  ),
+                ).then((_) => _fetchData());
+              },
+              borderRadius: BorderRadius.circular(kRadius),
+              splashColor: kAccent.withValues(alpha: 0.08),
+              highlightColor: kAccent.withValues(alpha: 0.04),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        if (hasSubActivities) ...[
                           Container(
                             padding: const EdgeInsets.all(4),
                             decoration: BoxDecoration(
@@ -224,13 +242,19 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
                             child: const Icon(Icons.folder_outlined, size: 13, color: kAccent),
                           ),
                           const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              activity['name'].toString(),
-                              style: AppTypography.body.copyWith(fontWeight: FontWeight.w700, fontSize: 13, color: kForeground),
-                              overflow: TextOverflow.ellipsis,
+                        ],
+                        Expanded(
+                          child: Text(
+                            activity['name'].toString(),
+                            style: AppTypography.body.copyWith(
+                              fontWeight: hasSubActivities ? FontWeight.w700 : FontWeight.w600,
+                              fontSize: 13,
+                              color: kForeground,
                             ),
+                            overflow: TextOverflow.ellipsis,
                           ),
+                        ),
+                        if (hasSubActivities)
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
@@ -238,86 +262,46 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text('GROUP', style: TextStyle(color: kInfo, fontSize: 9, fontWeight: FontWeight.bold)),
+                          )
+                        else if (activity['is_graded'] == true)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: kAccent.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text('GRADED', style: TextStyle(color: kAccent, fontSize: 9, fontWeight: FontWeight.bold)),
                           ),
-                        ],
-                      ),
-                      if (roleName != null) ...[
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(Icons.psychology_outlined, size: 11, color: kAccent),
-                            const SizedBox(width: 4),
-                            Text(roleName, style: AppTypography.caption.copyWith(fontSize: 10, color: kAccent)),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-                )
-              : InkWell(
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => ScoreTraineesPage(
-                          sessionId: widget.sessionId,
-                          activityId: activity['id'],
-                          activityName: activity['name'],
-                          sessionName: widget.sessionName,
-                          roleId: activity['target_role_id'],
-                          roleName: roleName,
-                        ),
-                      ),
-                    ).then((_) => _fetchData());
-                  },
-                  borderRadius: BorderRadius.circular(kRadius),
-                  splashColor: kAccent.withValues(alpha: 0.08),
-                  highlightColor: kAccent.withValues(alpha: 0.04),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                activity['name'].toString(),
-                                style: AppTypography.body.copyWith(fontWeight: FontWeight.w600, fontSize: 13),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            if (activity['is_graded'] == true)
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: kAccent.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text('GRADED', style: TextStyle(color: kAccent, fontSize: 9, fontWeight: FontWeight.bold)),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(Icons.psychology_outlined, size: 12, color: roleName != null ? kAccent : kForegroundDisabled),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                roleName ?? 'No role assigned',
-                                style: AppTypography.caption.copyWith(fontSize: 11, color: roleName != null ? kAccent : kForegroundDisabled),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            Text('See more', style: TextStyle(color: kAccent, fontSize: 11, fontWeight: FontWeight.w600)),
-                            const SizedBox(width: 2),
-                            const Icon(Icons.chevron_right_rounded, size: 14, color: kAccent),
-                          ],
-                        ),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.psychology_outlined,
+                          size: hasSubActivities ? 11 : 12,
+                          color: roleName != null ? kAccent : kForegroundDisabled,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            roleName ?? 'No role assigned',
+                            style: AppTypography.caption.copyWith(
+                              fontSize: hasSubActivities ? 10 : 11,
+                              color: roleName != null ? kAccent : kForegroundDisabled,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text('See more', style: TextStyle(color: kAccent, fontSize: 11, fontWeight: FontWeight.w600)),
+                        const SizedBox(width: 2),
+                        const Icon(Icons.chevron_right_rounded, size: 14, color: kAccent),
+                      ],
+                    ),
+                  ],
                 ),
+              ),
+            ),
         ),
         if (isParent) ...[
           Material(

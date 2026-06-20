@@ -31,6 +31,7 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
   final supabase = Supabase.instance.client;
   bool _isLoading = true;
   List<Map<String, dynamic>> _trainees = [];
+  Map<String, Map<String, dynamic>> _resultsMap = {};
   final Map<String, TextEditingController> _scoreControllers = {};
   final Map<String, TextEditingController> _feedbackControllers = {};
   List<Map<String, dynamic>> _subActivities = [];
@@ -114,6 +115,7 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
 
     setState(() {
       _trainees = traineesList;
+      _resultsMap = resultsMap;
       for (var trainee in _trainees) {
         final id = trainee['id'] as String;
         final existing = resultsMap[id];
@@ -319,6 +321,18 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
         ],
       ),
     );
+  }
+
+  String _formatDate(String isoDate) {
+    try {
+      final dt = DateTime.parse(isoDate).toLocal();
+      final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+      final m = dt.minute.toString().padLeft(2, '0');
+      final ampm = dt.hour < 12 ? 'AM' : 'PM';
+      return '${dt.month}/${dt.day} $h:$m $ampm';
+    } catch (_) {
+      return '';
+    }
   }
 
   String _getInitials(String name) {
@@ -547,6 +561,15 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
       AppCache.instance.invalidate('result:${widget.activityId}:$traineeId');
 
       if (mounted) {
+        setState(() {
+          _resultsMap[traineeId] = {
+            'activity_id': widget.activityId,
+            'trainee_id': traineeId,
+            'score': score,
+            'feedback': feedbackText.isEmpty ? null : feedbackText,
+            'updated_at': DateTime.now().toIso8601String(),
+          };
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Saved'), duration: Duration(seconds: 1)),
         );
@@ -579,40 +602,103 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
   }
 
   Widget _buildTraineeScoringCard(Map<String, dynamic> trainee) {
+    final id = trainee['id'] as String;
+    final result = _resultsMap[id];
+    final isGraded = result != null && result['score'] != null;
+    final score = isGraded ? result!['score'] : null;
+    final gradedAt = isGraded ? (result!['updated_at'] ?? result['created_at']) as String? : null;
+
     return AppCard(
       margin: const EdgeInsets.only(bottom: 8),
       padding: EdgeInsets.zero,
+      color: isGraded ? Colors.green.withValues(alpha: 0.06) : kSurface,
       child: InkWell(
         onTap: () => _openTraineeScoringFlow(trainee),
         borderRadius: BorderRadius.circular(kRadius),
         splashColor: kAccent.withValues(alpha: 0.08),
         highlightColor: kAccent.withValues(alpha: 0.04),
         child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: kAccent.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: isGraded
+                      ? Colors.green.withValues(alpha: 0.15)
+                      : kAccent.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: isGraded
+                      ? const Icon(Icons.check_circle_rounded, color: Colors.green, size: 20)
+                      : const Icon(Icons.person_outline_rounded, color: kAccent, size: 18),
+                ),
               ),
-              child: const Icon(Icons.person_outline_rounded, color: kAccent, size: 18),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(trainee['full_name'].toString(), style: AppTypography.body.copyWith(fontWeight: FontWeight.w600, fontSize: 13)),
-                  if (trainee['email'] != null)
-                    Text(trainee['email'], style: AppTypography.caption.copyWith(fontSize: 10)),
-                ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      trainee['full_name'].toString(),
+                      style: AppTypography.body.copyWith(fontWeight: FontWeight.w600, fontSize: 13),
+                    ),
+                    const SizedBox(height: 2),
+                    if (isGraded && gradedAt != null)
+                      Text(
+                        'Graded ${_formatDate(gradedAt)}',
+                        style: AppTypography.caption.copyWith(fontSize: 10, color: Colors.green.shade400),
+                      )
+                    else if (trainee['email'] != null)
+                      Text(
+                        trainee['email'],
+                        style: AppTypography.caption.copyWith(fontSize: 10),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            Icon(Icons.chevron_right_rounded, size: 18, color: kForegroundMuted),
-          ],
-        ),
+              const SizedBox(width: 8),
+              if (isGraded) ...[
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.green.withValues(alpha: 0.35)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.check_rounded, size: 10, color: Colors.green),
+                          const SizedBox(width: 4),
+                          const Text(
+                            'Graded',
+                            style: TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      score.toString(),
+                      style: AppTypography.body.copyWith(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                        color: Colors.green,
+                      ),
+                    ),
+                  ],
+                ),
+              ] else ...[
+                Icon(Icons.chevron_right_rounded, size: 18, color: kForegroundMuted),
+              ],
+            ],
+          ),
         ),
       ),
     );
