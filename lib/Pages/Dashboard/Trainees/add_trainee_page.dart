@@ -199,9 +199,11 @@ class _AddTraineePageState extends State<AddTraineePage> {
                                         child: const Icon(Icons.badge_outlined, size: 16, color: kAccent),
                                       ),
                                       const SizedBox(width: 12),
-                                      const SectionHeader(
-                                        title: 'Identity',
-                                        subtitle: 'Basic member information',
+                                      const Expanded(
+                                        child: SectionHeader(
+                                          title: 'Identity',
+                                          subtitle: 'Basic member information',
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -242,9 +244,11 @@ class _AddTraineePageState extends State<AddTraineePage> {
                                         child: const Icon(Icons.psychology_outlined, size: 16, color: kInfo),
                                       ),
                                       const SizedBox(width: 12),
-                                      const SectionHeader(
-                                        title: 'Position',
-                                        subtitle: 'Assign one or more roles',
+                                      const Expanded(
+                                        child: SectionHeader(
+                                          title: 'Position',
+                                          subtitle: 'Assign one or more roles',
+                                        ),
                                       ),
                                     ],
                                   ),

@@ -264,12 +264,15 @@ class _AppButtonState extends State<AppButton> {
                               Icon(widget.icon, size: 20, color: finalTextColor),
                               const SizedBox(width: 12),
                             ],
-                            Text(
-                              widget.label,
-                              style: TextStyle(
-                                color: finalTextColor,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 16,
+                            Flexible(
+                              child: Text(
+                                widget.label,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: finalTextColor,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                ),
                               ),
                             ),
                           ],
