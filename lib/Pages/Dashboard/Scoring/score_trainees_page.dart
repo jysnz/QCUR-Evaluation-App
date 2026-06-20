@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qcur_evaluation/Services/app_cache.dart';
@@ -45,11 +46,31 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
   List<Map<String, dynamic>> _subActivities = [];
   bool _subExpanded = true;
   String _searchQuery = '';
+  String? _currentUserName;
 
   @override
   void initState() {
     super.initState();
+    _loadCurrentUser();
     _fetchData();
+  }
+
+  Future<void> _loadCurrentUser() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+    final cacheKey = 'user:${user.id}';
+    final cached = AppCache.instance.get<Map<String, dynamic>>(cacheKey);
+    if (cached != null) {
+      if (mounted) setState(() => _currentUserName = cached['full_name']?.toString() ?? user.email ?? 'Another user');
+      return;
+    }
+    try {
+      final data = await supabase.from('user_accounts').select('full_name').eq('id', user.id).single();
+      AppCache.instance.set(cacheKey, data);
+      if (mounted) setState(() => _currentUserName = data['full_name']?.toString() ?? user.email ?? 'Another user');
+    } catch (_) {
+      if (mounted) setState(() => _currentUserName = user.email ?? 'Another user');
+    }
   }
 
   @override
@@ -317,17 +338,85 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
 
   // ---------- Bottom sheets ----------
 
-  void _openTraineeScoringSheet(Map<String, dynamic> trainee) {
-    if (_subActivities.isNotEmpty) {
-      _openSubScoringSheet(trainee);
-    } else {
-      _openSingleScoringSheet(trainee);
+  Future<void> _openTraineeScoringSheet(Map<String, dynamic> trainee) async {
+    final traineeId = trainee['id'] as String;
+    final currentUserId = supabase.auth.currentUser?.id ?? '';
+    final currentUserName = _currentUserName ?? 'Another user';
+    final channelKey = 'scoring:${widget.activityId}:$traineeId';
+
+    // Subscribe to presence channel WITHOUT tracking — initial sync shows who was
+    // already there before us.
+    final syncCompleter = Completer<void>();
+    final channel = supabase.channel(channelKey);
+
+    channel.onPresenceSync((_) {
+      if (!syncCompleter.isCompleted) syncCompleter.complete();
+    });
+    channel.subscribe();
+
+    // Wait for the server to send the current presence state (timeout = 3s)
+    try {
+      await syncCompleter.future.timeout(const Duration(seconds: 3));
+    } catch (_) {}
+
+    if (!mounted) {
+      await supabase.removeChannel(channel);
+      return;
     }
+
+    // Anyone in the channel at this point was scoring before us
+    final others = channel.presenceState()
+        .expand((s) => s.presences)
+        .where((p) => (p.payload['user_id'] as String?) != currentUserId)
+        .toList();
+
+    if (others.isNotEmpty) {
+      final otherName = others.first.payload['name'] as String? ?? 'Another user';
+      await supabase.removeChannel(channel);
+      if (!mounted) return;
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: kSurface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius)),
+          title: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: kWarning, size: 20),
+              const SizedBox(width: 8),
+              const Expanded(child: Text('Currently being scored', style: AppTypography.h3)),
+            ],
+          ),
+          content: Text(
+            '${trainee['full_name']} is currently being scored by $otherName. Please wait until they\'re done.',
+            style: AppTypography.body,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('OK', style: TextStyle(color: kAccent, fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // No one else — track our presence and open the sheet
+    await channel.track({'user_id': currentUserId, 'name': currentUserName});
+
+    if (_subActivities.isNotEmpty) {
+      await _openSubScoringSheet(trainee);
+    } else {
+      await _openSingleScoringSheet(trainee);
+    }
+
+    // Sheet is closed — leave the presence channel
+    await supabase.removeChannel(channel);
   }
 
-  void _openSingleScoringSheet(Map<String, dynamic> trainee) {
+  Future<void> _openSingleScoringSheet(Map<String, dynamic> trainee) async {
     final id = trainee['id'] as String;
-    showModalBottomSheet(
+    await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: kSurface,
@@ -373,9 +462,9 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
     );
   }
 
-  void _openSubScoringSheet(Map<String, dynamic> trainee) {
+  Future<void> _openSubScoringSheet(Map<String, dynamic> trainee) async {
     final id = trainee['id'] as String;
-    showModalBottomSheet(
+    await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: kSurface,
