@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:qcur_evaluation/Pages/Dashboard/dashboard_page.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 import 'package:qcur_evaluation/Pages/Auth/auth_widgets.dart';
 
