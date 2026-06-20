@@ -230,7 +230,7 @@ class _SessionsTabState extends State<_SessionsTab> {
                   const SizedBox(height: 24),
                   Expanded(
                     child: _isLoading
-                        ? const Center(child: CircularProgressIndicator(color: kAccent))
+                        ? const AppLoader()
                         : RefreshIndicator(
                             onRefresh: _fetchData,
                             color: kAccent,
@@ -299,7 +299,7 @@ class _SessionsTabState extends State<_SessionsTab> {
             ],
           ),
           const SizedBox(height: 10),
-          Text(value, style: AppTypography.h1.copyWith(color: color, fontSize: 24)),
+          Text(value, style: AppTypography.statValue.copyWith(color: color)),
         ],
       ),
     );
@@ -409,35 +409,15 @@ class _SessionsTabState extends State<_SessionsTab> {
   }
 
   Widget _buildEmptyState() {
+    // Kept scrollable so pull-to-refresh still works on an empty list.
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
-        SizedBox(height: MediaQuery.of(context).size.height * 0.2),
-        Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: kSurfaceElevated.withValues(alpha: 0.5),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.layers_clear_outlined, size: 40, color: kForegroundMuted.withValues(alpha: 0.3)),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'No Sessions Yet',
-                style: AppTypography.h3.copyWith(color: kForegroundMuted),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Tap the button below to create your first training session.',
-                style: AppTypography.caption,
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
+        SizedBox(height: MediaQuery.of(context).size.height * 0.18),
+        const AppEmptyState(
+          icon: Icons.layers_clear_outlined,
+          title: 'No Sessions Yet',
+          message: 'Tap the button below to create your first training session.',
         ),
       ],
     );

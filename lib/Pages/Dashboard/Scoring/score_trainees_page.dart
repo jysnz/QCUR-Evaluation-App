@@ -180,7 +180,7 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
         children: [
           const TechnicalGridBackground(),
           _isLoading
-              ? const Center(child: CircularProgressIndicator(color: kAccent))
+              ? const AppLoader()
               : SafeArea(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(kPadding),
@@ -679,7 +679,7 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
                   children: [
                     Text(
                       score.toString(),
-                      style: AppTypography.h2.copyWith(fontSize: 22, color: kAccent),
+                      style: AppTypography.statValue.copyWith(fontSize: 22, color: kAccent),
                     ),
                     Text(
                       'pts',
@@ -697,30 +697,10 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
   }
 
   Widget _buildEmptyState() {
-    return SizedBox(
-      width: double.infinity,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const SizedBox(height: 32),
-          Icon(Icons.person_off_rounded, size: 48, color: kForegroundDisabled),
-          const SizedBox(height: 12),
-          Text(
-            'No members matched',
-            style: AppTypography.h3.copyWith(color: kForegroundMuted, fontSize: 15),
-          ),
-          const SizedBox(height: 6),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Text(
-              'No trainees with the ${widget.roleName ?? "selected"} role are assigned to this session.',
-              textAlign: TextAlign.center,
-              style: AppTypography.caption.copyWith(fontSize: 11),
-            ),
-          ),
-          const SizedBox(height: 32),
-        ],
-      ),
+    return AppEmptyState(
+      icon: Icons.person_off_rounded,
+      title: 'No members matched',
+      message: 'No trainees with the ${widget.roleName ?? "selected"} role are assigned to this session.',
     );
   }
 }

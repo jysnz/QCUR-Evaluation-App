@@ -87,6 +87,22 @@ class AppTypography {
     fontWeight: FontWeight.w700,
     letterSpacing: 1.2,
   );
+
+  // Tabular figures keep numeric columns, scores and timers from shifting width.
+  static const TextStyle numeric = TextStyle(
+    color: kForeground,
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+
+  static const TextStyle statValue = TextStyle(
+    color: kForeground,
+    fontSize: 24,
+    fontWeight: FontWeight.w700,
+    letterSpacing: -0.5,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
 }
 
 // --- COMPONENTS ---
@@ -220,13 +236,18 @@ class _AppButtonState extends State<AppButton> {
     final finalColor = widget.isSecondary ? Colors.transparent : widget.color;
     final finalTextColor = widget.isSecondary ? kForeground : widget.textColor;
     final isDisabled = widget.onTap == null;
+    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      enabled: !isDisabled,
+      label: widget.label,
+      child: GestureDetector(
       onTapDown: (_) { if (!isDisabled && !widget.isLoading) setState(() => _pressed = true); },
       onTapUp: (_) => setState(() => _pressed = false),
       onTapCancel: () => setState(() => _pressed = false),
       child: AnimatedScale(
-        scale: _pressed ? 0.97 : 1.0,
+        scale: (_pressed && !reduceMotion) ? 0.97 : 1.0,
         duration: const Duration(milliseconds: 100),
         curve: Curves.easeOut,
         child: AnimatedOpacity(
@@ -282,6 +303,7 @@ class _AppButtonState extends State<AppButton> {
             ),
           ),
         ),
+      ),
       ),
     );
   }
@@ -386,18 +408,33 @@ class SectionHeader extends StatelessWidget {
   final String title;
   final String? subtitle;
   final Widget? trailing;
+  final IconData? icon;
+  final Color iconColor;
 
   const SectionHeader({
     super.key,
     required this.title,
     this.subtitle,
     this.trailing,
+    this.icon,
+    this.iconColor = kAccent,
   });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
+        if (icon != null) ...[
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(kRadiusSmall),
+            ),
+            child: Icon(icon, size: 18, color: iconColor),
+          ),
+          const SizedBox(width: 12),
+        ],
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -428,19 +465,114 @@ class AppStatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(kRadiusSmall),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
+    final text = label.isEmpty ? label : label[0].toUpperCase() + label.substring(1);
+    return Semantics(
+      label: 'Status: $text',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(kRadiusSmall),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // A shape cue so status is never conveyed by color alone.
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              text,
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
       ),
-      child: Text(
-        label[0].toUpperCase() + label.substring(1),
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
+    );
+  }
+}
+
+/// Centered loading indicator with an optional label. Standardizes the
+/// duplicated `Center(child: CircularProgressIndicator(color: kAccent))`.
+class AppLoader extends StatelessWidget {
+  final String? label;
+  const AppLoader({super.key, this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 28,
+            height: 28,
+            child: CircularProgressIndicator(color: kAccent, strokeWidth: 2.5),
+          ),
+          if (label != null) ...[
+            const SizedBox(height: 12),
+            Text(label!, style: AppTypography.caption),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Consistent empty state with icon, title, message and optional action.
+class AppEmptyState extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String? message;
+  final Widget? action;
+
+  const AppEmptyState({
+    super.key,
+    required this.icon,
+    required this.title,
+    this.message,
+    this.action,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: kSurfaceElevated.withValues(alpha: 0.5),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 40, color: kForegroundMuted.withValues(alpha: 0.4)),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: AppTypography.h3.copyWith(color: kForegroundMuted),
+            ),
+            if (message != null) ...[
+              const SizedBox(height: 6),
+              Text(message!, textAlign: TextAlign.center, style: AppTypography.caption),
+            ],
+            if (action != null) ...[
+              const SizedBox(height: 20),
+              action!,
+            ],
+          ],
         ),
       ),
     );
