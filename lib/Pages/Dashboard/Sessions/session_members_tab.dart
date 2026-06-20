@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qcur_evaluation/Services/app_cache.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Trainees/add_trainee_page.dart';
+import 'package:qcur_evaluation/Pages/Dashboard/Trainees/edit_trainee_page.dart';
 
 class SessionMembersTab extends StatefulWidget {
   final String sessionId;
@@ -99,6 +100,9 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
                 ),
               );
               if (result == true) {
+                AppCache.instance.invalidate('trainees');
+                AppCache.instance.invalidate('st_full:${widget.sessionId}');
+                AppCache.instance.invalidateWhere((k) => k.startsWith('st:'));
                 _fetchData();
               }
             },
@@ -274,44 +278,81 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
                       ],
                     )
                   : null,
-              trailing: IconButton(
-                icon: const Icon(Icons.person_remove_rounded, color: kError, size: 16),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                tooltip: 'Remove member',
-                onPressed: () async {
-                  final confirm = await showDialog<bool>(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      backgroundColor: kSurface,
-                      title: const Text('Remove from session?', style: AppTypography.h3),
-                      content: Text('Are you sure you want to remove ${trainee['full_name']}?', style: AppTypography.body),
-                      actions: [
-                        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, true), 
-                          child: const Text('Remove', style: TextStyle(color: kError, fontWeight: FontWeight.bold)),
+              trailing: PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert_rounded, size: 18, color: kForegroundDisabled),
+                color: kSurfaceElevated,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusSmall)),
+                onSelected: (value) async {
+                  if (value == 'edit') {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => EditTraineePage(
+                          trainee: trainee,
+                          sessionId: widget.sessionId,
                         ),
-                      ],
-                    ),
-                  );
-                  
-                  if (confirm == true) {
-                    try {
-                      await supabase.from('session_trainees')
-                          .delete()
-                          .eq('session_id', widget.sessionId)
-                          .eq('trainee_id', id);
+                      ),
+                    );
+                    if (result == true) {
                       AppCache.instance.invalidate('trainees');
                       AppCache.instance.invalidate('st_full:${widget.sessionId}');
+                      AppCache.instance.invalidateWhere((k) => k.startsWith('st:'));
                       _fetchData();
-                    } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Remove failed: $e')));
+                    }
+                  } else if (value == 'remove') {
+                    final messenger = ScaffoldMessenger.of(context);
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        backgroundColor: kSurface,
+                        title: const Text('Remove from session?', style: AppTypography.h3),
+                        content: Text('Remove ${trainee['full_name']} from this session?', style: AppTypography.body),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text('Remove', style: TextStyle(color: kError, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirm == true) {
+                      try {
+                        await supabase
+                            .from('session_trainees')
+                            .delete()
+                            .eq('session_id', widget.sessionId)
+                            .eq('trainee_id', id);
+                        AppCache.instance.invalidate('trainees');
+                        AppCache.instance.invalidate('st_full:${widget.sessionId}');
+                        AppCache.instance.invalidateWhere((k) => k.startsWith('st:'));
+                        _fetchData();
+                      } catch (e) {
+                        messenger.showSnackBar(SnackBar(content: Text('Remove failed: $e')));
                       }
                     }
                   }
                 },
+                itemBuilder: (_) => [
+                  PopupMenuItem(
+                    value: 'edit',
+                    height: 40,
+                    child: Row(children: [
+                      const Icon(Icons.edit_outlined, size: 15, color: kForeground),
+                      const SizedBox(width: 10),
+                      Text('Edit', style: AppTypography.body.copyWith(fontSize: 13)),
+                    ]),
+                  ),
+                  PopupMenuItem(
+                    value: 'remove',
+                    height: 40,
+                    child: Row(children: [
+                      const Icon(Icons.person_remove_outlined, size: 15, color: kError),
+                      const SizedBox(width: 10),
+                      Text('Remove', style: AppTypography.body.copyWith(fontSize: 13, color: kError)),
+                    ]),
+                  ),
+                ],
               ),
             ),
           ),
@@ -352,6 +393,9 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
                     ),
                   );
                   if (result == true) {
+                    AppCache.instance.invalidate('trainees');
+                    AppCache.instance.invalidate('st_full:${widget.sessionId}');
+                    AppCache.instance.invalidateWhere((k) => k.startsWith('st:'));
                     _fetchData();
                   }
                 },

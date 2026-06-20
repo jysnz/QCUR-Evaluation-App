@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qcur_evaluation/Services/app_cache.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Activities/create_activity_page.dart';
+import 'package:qcur_evaluation/Pages/Dashboard/Activities/edit_activity_page.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Scoring/score_trainees_page.dart';
 
 class ActivityManagementView extends StatefulWidget {
@@ -120,6 +121,61 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
         );
       }
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _editActivity(Map<String, dynamic> activity) async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => EditActivityPage(
+          activityId: activity['id'] as String,
+          sessionId: widget.sessionId,
+          currentName: activity['name'].toString(),
+          currentScoringDirection: activity['scoring_direction']?.toString() ?? 'higher_is_better',
+          currentRoleId: activity['target_role_id'] as String?,
+          canChangeRole: activity['parent_id'] == null,
+        ),
+      ),
+    );
+    if (result == true) _fetchData();
+  }
+
+  Future<void> _deleteActivity(Map<String, dynamic> activity) async {
+    final hasSubActivities = _activities.any((a) => a['parent_id'] == activity['id']);
+    final messenger = ScaffoldMessenger.of(context);
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: kSurface,
+        title: const Text('Delete Activity?', style: AppTypography.h3),
+        content: Text(
+          hasSubActivities
+              ? '"${activity['name']}" has sub-activities. Deleting it will permanently remove all of them.'
+              : 'This will permanently delete "${activity['name']}".',
+          style: AppTypography.body,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete', style: TextStyle(color: kError, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        // Delete sub-activities first, then the parent
+        await supabase.from('activities').delete().eq('parent_id', activity['id']);
+        await supabase.from('activities').delete().eq('id', activity['id']);
+
+        AppCache.instance.invalidateWhere((k) => k.startsWith('acts:'));
+        AppCache.instance.invalidateWhere((k) => k.startsWith('subs:'));
+        _fetchData();
+      } catch (e) {
+        messenger.showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+      }
     }
   }
 
@@ -272,6 +328,39 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
                             ),
                             child: Text('GRADED', style: TextStyle(color: kAccent, fontSize: 9, fontWeight: FontWeight.bold)),
                           ),
+                        PopupMenuButton<String>(
+                          padding: EdgeInsets.zero,
+                          color: kSurfaceElevated,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusSmall)),
+                          onSelected: (value) {
+                            if (value == 'edit') _editActivity(activity);
+                            if (value == 'delete') _deleteActivity(activity);
+                          },
+                          itemBuilder: (_) => [
+                            PopupMenuItem(
+                              value: 'edit',
+                              height: 40,
+                              child: Row(children: [
+                                const Icon(Icons.edit_outlined, size: 15, color: kForeground),
+                                const SizedBox(width: 10),
+                                Text('Edit', style: AppTypography.body.copyWith(fontSize: 13)),
+                              ]),
+                            ),
+                            PopupMenuItem(
+                              value: 'delete',
+                              height: 40,
+                              child: Row(children: [
+                                const Icon(Icons.delete_outline_rounded, size: 15, color: kError),
+                                const SizedBox(width: 10),
+                                Text('Delete', style: AppTypography.body.copyWith(fontSize: 13, color: kError)),
+                              ]),
+                            ),
+                          ],
+                          child: const Padding(
+                            padding: EdgeInsets.only(left: 6),
+                            child: Icon(Icons.more_vert_rounded, size: 15, color: kForegroundDisabled),
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 4),

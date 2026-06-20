@@ -3,33 +3,35 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qcur_evaluation/Services/app_cache.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 
-class AddTraineePage extends StatefulWidget {
+class EditTraineePage extends StatefulWidget {
+  final Map<String, dynamic> trainee;
   final String sessionId;
 
-  const AddTraineePage({
+  const EditTraineePage({
     super.key,
+    required this.trainee,
     required this.sessionId,
   });
 
   @override
-  State<AddTraineePage> createState() => _AddTraineePageState();
+  State<EditTraineePage> createState() => _EditTraineePageState();
 }
 
-class _AddTraineePageState extends State<AddTraineePage> {
-  final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
+class _EditTraineePageState extends State<EditTraineePage> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _emailController;
   final List<Map<String, dynamic>> _selectedRoles = [];
+  List<Map<String, dynamic>> _availableRoles = [];
   bool _isLoading = true;
   bool _isSaving = false;
-  bool _createMore = false;
-  bool _anySaved = false;
   final supabase = Supabase.instance.client;
-  List<Map<String, dynamic>> _availableRoles = [];
 
   @override
   void initState() {
     super.initState();
-    _fetchRoles();
+    _nameController = TextEditingController(text: widget.trainee['full_name']?.toString() ?? '');
+    _emailController = TextEditingController(text: widget.trainee['email']?.toString() ?? '');
+    _loadData();
   }
 
   @override
@@ -39,31 +41,44 @@ class _AddTraineePageState extends State<AddTraineePage> {
     super.dispose();
   }
 
-  Future<void> _fetchRoles() async {
+  Future<void> _loadData() async {
     try {
+      // Load available roles from cache
       final cached = AppCache.instance.get<List<dynamic>>('roles');
-      final data = cached ?? await supabase.from('roles').select().order('name');
+      final rolesData = cached ?? await supabase.from('roles').select().order('name');
       if (cached == null) {
-        AppCache.instance.set('roles', data, ttl: const Duration(minutes: 30));
+        AppCache.instance.set('roles', rolesData, ttl: const Duration(minutes: 30));
       }
+      final roles = List<Map<String, dynamic>>.from(rolesData);
+
+      // Load this trainee's current role assignments
+      final assignedRoles = await supabase
+          .from('trainee_roles')
+          .select('role_id')
+          .eq('trainee_id', widget.trainee['id']);
+
+      final assignedIds = Set<String>.from(
+        (assignedRoles as List).map((r) => r['role_id'].toString()),
+      );
+
       setState(() {
-        _availableRoles = List<Map<String, dynamic>>.from(data);
+        _availableRoles = roles;
+        _selectedRoles.addAll(roles.where((r) => assignedIds.contains(r['id'].toString())));
         _isLoading = false;
       });
     } catch (e) {
-      debugPrint('Error fetching roles: $e');
+      debugPrint('Error loading trainee data: $e');
       setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _saveTrainee() async {
+  Future<void> _save() async {
     if (_nameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a name')),
       );
       return;
     }
-
     if (_selectedRoles.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select at least one role')),
@@ -73,54 +88,28 @@ class _AddTraineePageState extends State<AddTraineePage> {
 
     setState(() => _isSaving = true);
     try {
+      final traineeId = widget.trainee['id'] as String;
       final roleNames = _selectedRoles.map((r) => r['name'].toString()).toList();
 
-      final traineeData = await supabase.from('trainees').insert({
+      await supabase.from('trainees').update({
         'full_name': _nameController.text.trim(),
         'email': _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
         'role': roleNames,
-        'creator_id': supabase.auth.currentUser!.id,
-      }).select().single();
+      }).eq('id', traineeId);
 
-      final traineeId = traineeData['id'];
+      await supabase.from('trainee_roles').delete().eq('trainee_id', traineeId);
+      await supabase.from('trainee_roles').insert(
+        _selectedRoles.map((r) => {'trainee_id': traineeId, 'role_id': r['id']}).toList(),
+      );
 
-      await supabase.from('session_trainees').insert({
-        'session_id': widget.sessionId,
-        'trainee_id': traineeId,
-      });
-
-      final List<Map<String, dynamic>> roleAssignments = _selectedRoles.map((role) => {
-        'trainee_id': traineeId,
-        'role_id': role['id'],
-      }).toList();
-
-      await supabase.from('trainee_roles').insert(roleAssignments);
       AppCache.instance.invalidate('trainees');
       AppCache.instance.invalidate('st_full:${widget.sessionId}');
-      // Clear all role-filtered session-trainee caches so new members appear in scoring.
       AppCache.instance.invalidateWhere((k) => k.startsWith('st:'));
 
-      if (mounted) {
-        if (_createMore) {
-          _nameController.clear();
-          _emailController.clear();
-          setState(() {
-            _selectedRoles.clear();
-            _isSaving = false;
-            _anySaved = true;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Trainee added. Ready for next entry.'), duration: Duration(seconds: 2)),
-          );
-        } else {
-          Navigator.of(context).pop(true);
-        }
-      }
+      if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving: $e')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving: $e')));
         setState(() => _isSaving = false);
       }
     }
@@ -138,18 +127,15 @@ class _AddTraineePageState extends State<AddTraineePage> {
       backgroundColor: kBackground,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        title: const Text(
-          'Add New Trainee',
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
-        ),
+        title: const Text('Edit Trainee', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
         leading: IconButton(
           icon: const Icon(Icons.close_rounded, color: kForegroundMuted),
-          onPressed: () => Navigator.of(context).pop(_anySaved),
+          onPressed: () => Navigator.of(context).pop(),
         ),
       ),
       body: AppBackground(
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: kAccent))
+            ? const AppLoader()
             : SafeArea(
                 child: Column(
                   children: [
@@ -159,7 +145,6 @@ class _AddTraineePageState extends State<AddTraineePage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // Avatar preview
                             Center(
                               child: AnimatedBuilder(
                                 animation: _nameController,
@@ -187,7 +172,6 @@ class _AddTraineePageState extends State<AddTraineePage> {
                             ),
                             const SizedBox(height: 24),
 
-                            // Identity card
                             AppCard(
                               padding: const EdgeInsets.all(kPaddingLarge),
                               child: Column(
@@ -232,7 +216,6 @@ class _AddTraineePageState extends State<AddTraineePage> {
                             ),
                             const SizedBox(height: 16),
 
-                            // Role card
                             AppCard(
                               padding: const EdgeInsets.all(kPaddingLarge),
                               child: Column(
@@ -259,9 +242,7 @@ class _AddTraineePageState extends State<AddTraineePage> {
                                   ),
                                   const SizedBox(height: 20),
                                   if (_availableRoles.isEmpty)
-                                    const Center(
-                                      child: Text('No roles available', style: AppTypography.caption),
-                                    )
+                                    const Center(child: Text('No roles available', style: AppTypography.caption))
                                   else
                                     Wrap(
                                       spacing: 8,
@@ -321,74 +302,13 @@ class _AddTraineePageState extends State<AddTraineePage> {
                       ),
                     ),
 
-                    // Create more toggle + save button
                     Padding(
                       padding: const EdgeInsets.fromLTRB(kPadding, 0, kPadding, kPadding),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          GestureDetector(
-                            onTap: () => setState(() => _createMore = !_createMore),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: _createMore
-                                    ? kAccent.withValues(alpha: 0.08)
-                                    : kSurfaceElevated.withValues(alpha: 0.5),
-                                borderRadius: BorderRadius.circular(kRadius),
-                                border: Border.all(
-                                  color: _createMore
-                                      ? kAccent.withValues(alpha: 0.35)
-                                      : kBorder.withValues(alpha: 0.4),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.playlist_add_rounded,
-                                    size: 18,
-                                    color: _createMore ? kAccent : kForegroundMuted,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Create more',
-                                          style: AppTypography.body.copyWith(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 13,
-                                            color: _createMore ? kAccent : kForeground,
-                                          ),
-                                        ),
-                                        Text(
-                                          'Stay on this page after saving',
-                                          style: AppTypography.caption.copyWith(fontSize: 11),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Switch(
-                                    value: _createMore,
-                                    onChanged: (v) => setState(() => _createMore = v),
-                                    activeThumbColor: kAccent,
-                                    activeTrackColor: kAccent.withValues(alpha: 0.25),
-                                    inactiveThumbColor: kForegroundDisabled,
-                                    inactiveTrackColor: kSurfaceElevated,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          AppButton(
-                            label: 'Add Trainee',
-                            onTap: _isSaving ? null : _saveTrainee,
-                            isLoading: _isSaving,
-                            icon: Icons.person_add_rounded,
-                          ),
-                        ],
+                      child: AppButton(
+                        label: 'Save Changes',
+                        onTap: _isSaving ? null : _save,
+                        isLoading: _isSaving,
+                        icon: Icons.check_rounded,
                       ),
                     ),
                   ],
