@@ -4,6 +4,7 @@ import 'package:qcur_evaluation/Services/app_cache.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Trainees/add_trainee_page.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Trainees/edit_trainee_page.dart';
+import 'package:qcur_evaluation/Pages/Dashboard/Trainees/trainee_scores_page.dart';
 
 class SessionMembersTab extends StatefulWidget {
   final String sessionId;
@@ -254,22 +255,16 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
               child: ListTile(
               dense: true,
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-              onTap: () async {
-                final result = await Navigator.push(
+              onTap: () {
+                Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => EditTraineePage(
-                      trainee: trainee,
-                      sessionId: widget.sessionId,
+                    builder: (_) => TraineeScoresPage(
+                      traineeId: trainee['id'].toString(),
+                      traineeName: trainee['full_name'].toString(),
                     ),
                   ),
                 );
-                if (result == true) {
-                  AppCache.instance.invalidate('trainees');
-                  AppCache.instance.invalidate('st_full:${widget.sessionId}');
-                  AppCache.instance.invalidateWhere((k) => k.startsWith('st:'));
-                  _fetchData();
-                }
               },
               leading: Container(
                 padding: const EdgeInsets.all(6),

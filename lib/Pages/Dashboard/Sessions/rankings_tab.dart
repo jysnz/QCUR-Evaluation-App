@@ -32,7 +32,7 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
   String? _selectedRoleName;
   // Which parent activities are checked
   Set<String> _selectedParentIds = {};
-  // parentId → selected sub-activity ID; null = All sub-questions
+  // parentId → selected sub-activity ID; null = All sub-activities
   Map<String, String?> _selectedSubIds = {};
 
   RealtimeChannel? _realtimeChannel;
@@ -708,7 +708,7 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
             items: [
               DropdownMenuItem<String?>(
                 value: null,
-                child: Text('All sub-questions',
+                child: Text('All sub-activities',
                     style: AppTypography.body
                         .copyWith(fontSize: 12, color: kForegroundMuted)),
               ),
@@ -971,7 +971,7 @@ class _TraineeScoreSheet extends StatefulWidget {
 }
 
 class _TraineeScoreSheetState extends State<_TraineeScoreSheet> {
-  // parentId → selected sub-activity ID; null = All sub-questions
+  // parentId → selected sub-activity ID; null = All sub-activities
   final Map<String, String?> _selectedSubIds = {};
 
   List<Map<String, dynamic>> _filterByRole(
@@ -1367,7 +1367,7 @@ class _TraineeScoreSheetState extends State<_TraineeScoreSheet> {
             DropdownMenuItem<String?>(
               value: null,
               child: Text(
-                'All sub-questions',
+                'All sub-activities',
                 style: AppTypography.body.copyWith(
                     fontSize: 12, color: kForegroundMuted),
               ),

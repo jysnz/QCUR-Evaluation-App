@@ -201,49 +201,92 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
                       children: [
                         // Parent activity config card
                         AppCard(
-                          padding: const EdgeInsets.all(kPaddingLarge),
+                          padding: EdgeInsets.zero,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: kAccent.withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(kRadiusSmall),
-                                    ),
-                                    child: Icon(
-                                      isSubActivity ? Icons.subdirectory_arrow_right_rounded : Icons.add_task_rounded,
-                                      size: 18,
-                                      color: kAccent,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: SectionHeader(
-                                      title: 'Configuration',
-                                      subtitle: isSubActivity
-                                          ? 'Sub-activity of: ${widget.parentName}'
-                                          : 'Defining a primary assessment activity',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 28),
-                              AppTextField(
-                                label: 'Activity Name',
-                                hint: 'e.g., Technical Assessment, Physical Training...',
+                              _field(
+                                icon: isSubActivity ? Icons.subdirectory_arrow_right_rounded : Icons.add_task_rounded,
+                                hint: 'Activity name...',
                                 controller: _nameController,
-                                icon: Icons.add_task_rounded,
                               ),
-                              const SizedBox(height: 24),
-                              _buildScoringDirectionDropdown(),
-                              const SizedBox(height: 24),
-                              if (!isSubActivity)
-                                _buildRoleAssignmentDropdown()
-                              else if (widget.inheritedRoleId != null)
-                                _buildLockedRoleDisplay(),
+                              const Divider(height: 1, color: kBorder, indent: 44),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.trending_up_rounded, size: 17, color: kAccent),
+                                    const SizedBox(width: 12),
+                                    Text('Scoring', style: AppTypography.caption.copyWith(color: kForegroundMuted, fontSize: 12)),
+                                    const Spacer(),
+                                    _mainScoringChip(label: 'Higher ▲', value: 'higher_is_better'),
+                                    const SizedBox(width: 6),
+                                    _mainScoringChip(label: 'Lower ▼', value: 'lower_is_better'),
+                                  ],
+                                ),
+                              ),
+                              if (!isSubActivity) ...[
+                                const Divider(height: 1, color: kBorder, indent: 44),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.psychology_outlined, size: 17, color: kAccent),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: DropdownButtonHideUnderline(
+                                          child: _isFetchingRoles
+                                              ? const Padding(
+                                                  padding: EdgeInsets.symmetric(vertical: 10),
+                                                  child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: kAccent)),
+                                                )
+                                              : DropdownButton<String>(
+                                                  value: _targetRoleId,
+                                                  isExpanded: true,
+                                                  hint: Text('Select a position', style: AppTypography.label.copyWith(color: kForegroundDisabled, fontSize: 13)),
+                                                  dropdownColor: kSurfaceElevated,
+                                                  style: AppTypography.body.copyWith(fontSize: 13, color: kForeground),
+                                                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kAccent, size: 16),
+                                                  isDense: true,
+                                                  items: [
+                                                    DropdownMenuItem<String>(
+                                                      value: '__all__',
+                                                      child: Row(children: [
+                                                        const Icon(Icons.groups_rounded, size: 14, color: kAccent),
+                                                        const SizedBox(width: 8),
+                                                        Text('All Positions', style: AppTypography.body.copyWith(color: kAccent, fontSize: 13)),
+                                                      ]),
+                                                    ),
+                                                    ..._roles.map((role) => DropdownMenuItem<String>(
+                                                      value: role['id'].toString(),
+                                                      child: Text(role['name'].toString(), style: AppTypography.body.copyWith(fontSize: 13)),
+                                                    )),
+                                                  ],
+                                                  onChanged: (v) => setState(() => _targetRoleId = v),
+                                                ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ] else if (widget.inheritedRoleId != null) ...[
+                                const Divider(height: 1, color: kBorder, indent: 44),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.lock_outline_rounded, size: 17, color: kAccent),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        _getInheritedRoleName(),
+                                        style: AppTypography.body.copyWith(fontSize: 13, color: kAccent, fontWeight: FontWeight.w600),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text('(inherited)', style: AppTypography.caption.copyWith(fontSize: 10, color: kForegroundDisabled)),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -277,40 +320,30 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
 
   Widget _buildSubActivitiesSection() {
     return AppCard(
-      padding: const EdgeInsets.all(kPaddingLarge),
+      padding: const EdgeInsets.all(kPadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: kInfo.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(kRadiusSmall),
-                ),
-                child: const Icon(Icons.account_tree_outlined, size: 18, color: kInfo),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: SectionHeader(
-                  title: 'Sub-activities',
-                  subtitle: 'Optional — break this activity into steps',
-                ),
-              ),
+              const Icon(Icons.account_tree_outlined, size: 14, color: kInfo),
+              const SizedBox(width: 6),
+              Text('SUB-ACTIVITIES', style: AppTypography.overline.copyWith(color: kInfo, fontSize: 10, letterSpacing: 1.1)),
+              const Spacer(),
+              Text('Optional', style: AppTypography.caption.copyWith(fontSize: 10)),
             ],
           ),
           if (_subDrafts.isNotEmpty) ...[
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
             ...List.generate(_subDrafts.length, (i) => _buildSubActivityRow(i)),
           ],
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           GestureDetector(
             onTap: () {
               setState(() => _subDrafts.add(_SubActivityDraft()));
             },
             child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 12),
+              padding: const EdgeInsets.symmetric(vertical: 10),
               decoration: BoxDecoration(
                 color: kAccent.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(kRadius),
@@ -340,13 +373,12 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
   Widget _buildSubActivityRow(int index) {
     final draft = _subDrafts[index];
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: kSurfaceElevated,
           borderRadius: BorderRadius.circular(kRadius),
-          border: Border.all(color: kBorder.withValues(alpha: 0.4)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -452,142 +484,61 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
     );
   }
 
-  Widget _buildRoleAssignmentDropdown() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Assign to Position', style: AppTypography.label),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: kSurfaceElevated,
-            borderRadius: BorderRadius.circular(kRadius),
-            border: Border.all(color: kBorder.withValues(alpha: 0.5)),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: _isFetchingRoles
-                ? const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: kAccent))),
-                  )
-                : DropdownButton<String>(
-                    value: _targetRoleId,
-                    isExpanded: true,
-                    hint: const Text('Select a position', style: TextStyle(color: kForegroundDisabled, fontSize: 14)),
-                    dropdownColor: kSurfaceElevated,
-                    style: AppTypography.bodyLg.copyWith(fontWeight: FontWeight.bold),
-                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kAccent),
-                    items: [
-                      DropdownMenuItem<String>(
-                        value: '__all__',
-                        child: Row(
-                          children: [
-                            const Icon(Icons.groups_rounded, size: 16, color: kAccent),
-                            const SizedBox(width: 8),
-                            Text(
-                              'All Positions',
-                              style: AppTypography.bodyLg.copyWith(
-                                color: kAccent,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      ..._roles.map((role) => DropdownMenuItem<String>(
-                            value: role['id'].toString(),
-                            child: Text(role['name'].toString()),
-                          )),
-                    ],
-                    onChanged: (v) => setState(() => _targetRoleId = v),
-                  ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLockedRoleDisplay() {
-    final inheritedRole = _roles.cast<Map<String, dynamic>?>().firstWhere(
+  String _getInheritedRoleName() {
+    if (_isFetchingRoles) return 'Loading...';
+    final role = _roles.cast<Map<String, dynamic>?>().firstWhere(
       (r) => r?['id'].toString() == widget.inheritedRoleId,
       orElse: () => null,
     );
-    final roleName = inheritedRole?['name']?.toString() ?? 'Inherited from parent';
+    return role?['name']?.toString() ?? 'Inherited from parent';
+  }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Assigned Role', style: AppTypography.label),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: kAccent.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(kRadiusSmall),
-            border: Border.all(color: kAccent.withValues(alpha: 0.3)),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.lock_outline_rounded, size: 16, color: kAccent),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      roleName,
-                      style: AppTypography.bodyLg.copyWith(color: kAccent, fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      'Inherited from parent activity',
-                      style: AppTypography.caption.copyWith(fontSize: 10),
-                    ),
-                  ],
-                ),
+  Widget _field({required IconData icon, required String hint, required TextEditingController controller}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 17, color: kAccent),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              style: AppTypography.body.copyWith(fontSize: 13),
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle: AppTypography.label.copyWith(color: kForegroundDisabled, fontSize: 13),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 9),
               ),
-            ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildScoringDirectionDropdown() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Scoring Type', style: AppTypography.label),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: kSurfaceElevated,
-            borderRadius: BorderRadius.circular(kRadius),
-            border: Border.all(color: kBorder.withValues(alpha: 0.5)),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _scoringDirection,
-              isExpanded: true,
-              dropdownColor: kSurfaceElevated,
-              style: AppTypography.bodyLg.copyWith(fontWeight: FontWeight.bold),
-              icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kAccent),
-              items: const [
-                DropdownMenuItem(
-                  value: 'higher_is_better',
-                  child: Text('Higher is better (%)'),
-                ),
-                DropdownMenuItem(
-                  value: 'lower_is_better',
-                  child: Text('Lower is better (Time/Errors)'),
-                ),
-              ],
-              onChanged: (v) => setState(() => _scoringDirection = v!),
-            ),
+  Widget _mainScoringChip({required String label, required String value}) {
+    final isSelected = _scoringDirection == value;
+    return GestureDetector(
+      onTap: () => setState(() => _scoringDirection = value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: isSelected ? kAccent.withValues(alpha: 0.12) : Colors.transparent,
+          borderRadius: BorderRadius.circular(kRadiusSmall),
+          border: Border.all(color: isSelected ? kAccent : kBorder.withValues(alpha: 0.4)),
+        ),
+        child: Text(
+          label,
+          style: AppTypography.caption.copyWith(
+            color: isSelected ? kAccent : kForegroundMuted,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            fontSize: 11,
           ),
         ),
-      ],
+      ),
     );
   }
 

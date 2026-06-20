@@ -133,7 +133,7 @@ class _SessionSettingsTabState extends State<SessionSettingsTab> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Rankings are computed differently depending on whether an activity has sub-questions.',
+                'Rankings are computed differently depending on whether an activity has sub-activities.',
                 style: AppTypography.body.copyWith(color: kForegroundMuted, fontSize: 13),
               ),
               const SizedBox(height: 20),
@@ -143,7 +143,7 @@ class _SessionSettingsTabState extends State<SessionSettingsTab> {
                 color: kInfo,
                 icon: Icons.straighten_rounded,
                 title: 'Direct Score',
-                subtitle: 'Activities without sub-questions',
+                subtitle: 'Activities without sub-activities',
                 body: 'Trainees are ranked by their raw score.\n\n'
                     '• Higher is Better → highest score = Rank 1\n'
                     '• Lower is Better → lowest score = Rank 1',
@@ -155,8 +155,8 @@ class _SessionSettingsTabState extends State<SessionSettingsTab> {
                 color: kAccent,
                 icon: Icons.calculate_rounded,
                 title: 'Aggregate Score',
-                subtitle: 'Activities with sub-questions',
-                body: 'Each sub-question is first normalized to a 0–100 scale across all trainees, then averaged.',
+                subtitle: 'Activities with sub-activities',
+                body: 'Each sub-activity is first normalized to a 0–100 scale across all trainees, then averaged.',
               ),
               const SizedBox(height: 12),
 
@@ -299,8 +299,8 @@ class _SessionSettingsTabState extends State<SessionSettingsTab> {
                           icon: isDone
                               ? Icons.check_circle_rounded
                               : Icons.check_circle_outline_rounded,
-                          iconColor: kSuccess,
-                          title: 'Mark as Done',
+                          iconColor: kInfo,
+                          title: 'Mark as Completed',
                           subtitle: isDone ? 'Session is completed' : 'Set this session as completed',
                           value: isDone,
                           onChanged: _toggleDone,

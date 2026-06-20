@@ -20,14 +20,14 @@ class _EditSessionPageState extends State<EditSessionPage> {
   bool _isSaving = false;
   final supabase = Supabase.instance.client;
 
-  static const _statuses = ['planned', 'active', 'completed'];
+  static const _statuses = ['active', 'completed'];
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.session['name']?.toString() ?? '');
     _selectedDate = DateTime.parse(widget.session['date'] as String);
-    _status = widget.session['status']?.toString() ?? 'planned';
+    _status = widget.session['status']?.toString() ?? 'active';
   }
 
   @override
@@ -86,9 +86,8 @@ class _EditSessionPageState extends State<EditSessionPage> {
 
   Color _statusColor(String status) {
     switch (status) {
-      case 'active': return kAccent;
-      case 'completed': return kSuccess;
-      case 'planned': return kInfo;
+      case 'active': return kSuccess;
+      case 'completed': return kInfo;
       default: return kForegroundMuted;
     }
   }

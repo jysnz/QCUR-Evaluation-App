@@ -1033,7 +1033,7 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
         final count = _scoredSubCount(id);
         if (count > 0) {
           subtitle = Text(
-            '$count of ${_subActivities.length} sub-questions scored',
+            '$count of ${_subActivities.length} sub-activities scored',
             style: AppTypography.caption.copyWith(fontSize: 10, color: kWarning),
           );
         } else if (trainee['email'] != null) {

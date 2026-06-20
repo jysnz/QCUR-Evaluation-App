@@ -330,24 +330,6 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        if (hasSubActivities)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: kInfo.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text('GROUP', style: TextStyle(color: kInfo, fontSize: 9, fontWeight: FontWeight.bold)),
-                          )
-                        else if (activity['is_graded'] == true)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: kAccent.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text('GRADED', style: TextStyle(color: kAccent, fontSize: 9, fontWeight: FontWeight.bold)),
-                          ),
                         PopupMenuButton<String>(
                           padding: EdgeInsets.zero,
                           color: kSurfaceElevated,
