@@ -32,8 +32,6 @@ class _ScoreTraineeDetailPageState extends State<ScoreTraineeDetailPage> {
   bool _isLoading = true;
   bool _isSaving = false;
 
-  TextEditingController? _scoreController;
-  TextEditingController? _feedbackController;
   final Map<String, TextEditingController> _subScoreControllers = {};
   final Map<String, TextEditingController> _subFeedbackControllers = {};
 
@@ -45,8 +43,6 @@ class _ScoreTraineeDetailPageState extends State<ScoreTraineeDetailPage> {
 
   @override
   void dispose() {
-    _scoreController?.dispose();
-    _feedbackController?.dispose();
     for (var c in _subScoreControllers.values) {
       c.dispose();
     }
@@ -61,21 +57,6 @@ class _ScoreTraineeDetailPageState extends State<ScoreTraineeDetailPage> {
       final traineeId = widget.trainee['id'] as String;
       final cache = AppCache.instance;
       const ttl = Duration(minutes: 2);
-
-      final mainKey = 'result:${widget.activityId}:$traineeId';
-      final cachedMain = cache.get<Map<String, dynamic>>(mainKey);
-      Map<String, dynamic>? mainResult;
-      if (cachedMain != null) {
-        mainResult = cachedMain;
-      } else {
-        mainResult = await supabase
-            .from('activity_results')
-            .select()
-            .eq('activity_id', widget.activityId)
-            .eq('trainee_id', traineeId)
-            .maybeSingle();
-        if (mainResult != null) cache.set(mainKey, mainResult, ttl: ttl);
-      }
 
       final subIds = widget.subActivities.map((a) => a['id'] as String).toList();
       List<Map<String, dynamic>> subResults = [];
@@ -100,13 +81,6 @@ class _ScoreTraineeDetailPageState extends State<ScoreTraineeDetailPage> {
       };
 
       setState(() {
-        _scoreController = TextEditingController(
-          text: mainResult != null && mainResult['score'] != null ? mainResult['score'].toString() : '',
-        );
-        _feedbackController = TextEditingController(
-          text: mainResult != null ? mainResult['feedback'] ?? '' : '',
-        );
-
         for (var sub in widget.subActivities) {
           final sid = sub['id'] as String;
           final existing = subResultsMap[sid];
@@ -117,7 +91,6 @@ class _ScoreTraineeDetailPageState extends State<ScoreTraineeDetailPage> {
             text: existing != null ? existing['feedback'] ?? '' : '',
           );
         }
-
         _isLoading = false;
       });
     } catch (e) {
@@ -133,23 +106,6 @@ class _ScoreTraineeDetailPageState extends State<ScoreTraineeDetailPage> {
     setState(() => _isSaving = true);
     try {
       final traineeId = widget.trainee['id'] as String;
-
-      final scoreText = _scoreController!.text.trim();
-      final feedbackText = _feedbackController!.text.trim();
-      if (scoreText.isNotEmpty) {
-        final score = double.tryParse(scoreText);
-        if (score != null) {
-          await supabase.from('activity_results').upsert(
-            {
-              'activity_id': widget.activityId,
-              'trainee_id': traineeId,
-              'score': score,
-              'feedback': feedbackText.isEmpty ? null : feedbackText,
-            },
-            onConflict: 'activity_id, trainee_id',
-          );
-        }
-      }
 
       for (var sub in widget.subActivities) {
         final sid = sub['id'] as String;
@@ -172,8 +128,6 @@ class _ScoreTraineeDetailPageState extends State<ScoreTraineeDetailPage> {
         }
       }
 
-      AppCache.instance.invalidate('results:${widget.activityId}');
-      AppCache.instance.invalidate('result:${widget.activityId}:$traineeId');
       AppCache.instance.invalidate('sub_results:${widget.activityId}:$traineeId');
       for (final sub in widget.subActivities) {
         AppCache.instance.invalidate('results:${sub['id']}');
@@ -230,10 +184,8 @@ class _ScoreTraineeDetailPageState extends State<ScoreTraineeDetailPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildHeader(),
-                        const SizedBox(height: 20),
-                        _buildMainScoring(),
                         if (widget.subActivities.isNotEmpty) ...[
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 20),
                           _buildSubScoring(),
                         ],
                         const SizedBox(height: 32),
@@ -284,77 +236,6 @@ class _ScoreTraineeDetailPageState extends State<ScoreTraineeDetailPage> {
                   ),
                 ],
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMainScoring() {
-    return AppCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('OVERALL SCORE', style: AppTypography.label),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: SizedBox(
-              height: 56,
-              child: TextField(
-                controller: _scoreController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                style: AppTypography.h2.copyWith(fontSize: 28, color: kForeground),
-                textAlign: TextAlign.center,
-                decoration: InputDecoration(
-                  hintText: '0',
-                  hintStyle: TextStyle(color: kForegroundDisabled.withValues(alpha: 0.5)),
-                  filled: true,
-                  fillColor: kSurfaceElevated.withValues(alpha: 0.5),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(kRadiusSmall),
-                    borderSide: BorderSide.none,
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(kRadiusSmall),
-                    borderSide: BorderSide(color: kBorder.withValues(alpha: 0.3), width: 1),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(kRadiusSmall),
-                    borderSide: const BorderSide(color: kAccent, width: 1.5),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text('FEEDBACK', style: AppTypography.label),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _feedbackController,
-            maxLines: 3,
-            style: AppTypography.body.copyWith(fontSize: 13),
-            decoration: InputDecoration(
-              hintText: 'Notes on performance or behavior...',
-              hintStyle: TextStyle(color: kForegroundDisabled.withValues(alpha: 0.5)),
-              filled: true,
-              fillColor: kSurfaceElevated.withValues(alpha: 0.5),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(kRadiusSmall),
-                borderSide: BorderSide.none,
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(kRadiusSmall),
-                borderSide: BorderSide(color: kBorder.withValues(alpha: 0.3), width: 1),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(kRadiusSmall),
-                borderSide: const BorderSide(color: kAccent, width: 1.5),
-              ),
             ),
           ),
         ],

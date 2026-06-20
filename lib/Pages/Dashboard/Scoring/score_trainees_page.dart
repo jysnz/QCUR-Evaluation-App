@@ -276,12 +276,17 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
   Widget _buildScoringSection() {
     if (_trainees.isEmpty) return _buildEmptyState();
 
+    final gradedCount = _trainees.where((t) {
+      final r = _resultsMap[t['id'] as String];
+      return r != null && r['score'] != null;
+    }).length;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Text('Scoring', style: AppTypography.h3.copyWith(fontSize: 15)),
+            Text('Members', style: AppTypography.h3.copyWith(fontSize: 15)),
             const Spacer(),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -290,51 +295,35 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                '${_trainees.length} members',
-                style: TextStyle(color: kAccent, fontSize: 11, fontWeight: FontWeight.w600),
+                '$gradedCount / ${_trainees.length} graded',
+                style: const TextStyle(color: kAccent, fontSize: 11, fontWeight: FontWeight.w600),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        _buildHeader(),
+        if (widget.roleName != null) ...[
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: kSurfaceElevated.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(kRadiusSmall),
+              border: Border.all(color: kBorder.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.psychology_rounded, size: 13, color: kAccent),
+                const SizedBox(width: 6),
+                Text(widget.roleName!, style: AppTypography.label.copyWith(color: kAccent, fontSize: 11)),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 8),
         ..._trainees.map((t) => _buildTraineeScoringCard(t)),
       ],
     );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: kSurfaceElevated.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(kRadiusSmall),
-        border: Border.all(color: kBorder.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.psychology_rounded, size: 14, color: kAccent),
-          const SizedBox(width: 6),
-          Text(
-            widget.roleName ?? 'Manual selection',
-            style: AppTypography.label.copyWith(color: kAccent, fontSize: 11),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatDate(String isoDate) {
-    try {
-      final dt = DateTime.parse(isoDate).toLocal();
-      final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
-      final m = dt.minute.toString().padLeft(2, '0');
-      final ampm = dt.hour < 12 ? 'AM' : 'PM';
-      return '${dt.month}/${dt.day} $h:$m $ampm';
-    } catch (_) {
-      return '';
-    }
   }
 
   String _getInitials(String name) {
@@ -608,34 +597,40 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
     final result = _resultsMap[id];
     final isGraded = result != null && result['score'] != null;
     final score = isGraded ? result['score'] : null;
-    final gradedAt = isGraded ? (result['updated_at'] ?? result['created_at']) as String? : null;
 
     return AppCard(
       margin: const EdgeInsets.only(bottom: 8),
       padding: EdgeInsets.zero,
-      color: isGraded ? Colors.green.withValues(alpha: 0.06) : kSurface,
+      color: isGraded ? kAccent.withValues(alpha: 0.05) : kSurface,
+      border: Border.all(
+        color: isGraded ? kAccent.withValues(alpha: 0.25) : kBorder.withValues(alpha: 0.5),
+      ),
       child: InkWell(
         onTap: () => _openTraineeScoringFlow(trainee),
         borderRadius: BorderRadius.circular(kRadius),
         splashColor: kAccent.withValues(alpha: 0.08),
         highlightColor: kAccent.withValues(alpha: 0.04),
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             children: [
               Container(
-                width: 36,
-                height: 36,
+                width: 38,
+                height: 38,
                 decoration: BoxDecoration(
-                  color: isGraded
-                      ? Colors.green.withValues(alpha: 0.15)
-                      : kAccent.withValues(alpha: 0.1),
+                  color: isGraded ? kAccent.withValues(alpha: 0.12) : kSurfaceElevated,
                   shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isGraded ? kAccent.withValues(alpha: 0.35) : kBorder.withValues(alpha: 0.5),
+                  ),
                 ),
                 child: Center(
                   child: isGraded
-                      ? const Icon(Icons.check_circle_rounded, color: Colors.green, size: 20)
-                      : const Icon(Icons.person_outline_rounded, color: kAccent, size: 18),
+                      ? const Icon(Icons.check_rounded, color: kAccent, size: 18)
+                      : Text(
+                          _getInitials(trainee['full_name'].toString()),
+                          style: const TextStyle(color: kForegroundMuted, fontWeight: FontWeight.w700, fontSize: 13),
+                        ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -647,11 +642,18 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
                       trainee['full_name'].toString(),
                       style: AppTypography.body.copyWith(fontWeight: FontWeight.w600, fontSize: 13),
                     ),
-                    const SizedBox(height: 2),
-                    if (isGraded && gradedAt != null)
-                      Text(
-                        'Graded ${_formatDate(gradedAt)}',
-                        style: AppTypography.caption.copyWith(fontSize: 10, color: Colors.green.shade400),
+                    const SizedBox(height: 3),
+                    if (isGraded)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: kAccent.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'Graded',
+                          style: TextStyle(color: kAccent, fontSize: 9, fontWeight: FontWeight.w700),
+                        ),
                       )
                     else if (trainee['email'] != null)
                       Text(
@@ -661,44 +663,23 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              if (isGraded) ...[
+              const SizedBox(width: 12),
+              if (isGraded)
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: Colors.green.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.green.withValues(alpha: 0.35)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.check_rounded, size: 10, color: Colors.green),
-                          const SizedBox(width: 4),
-                          const Text(
-                            'Graded',
-                            style: TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.w700),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 4),
                     Text(
                       score.toString(),
-                      style: AppTypography.body.copyWith(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 16,
-                        color: Colors.green,
-                      ),
+                      style: AppTypography.h2.copyWith(fontSize: 22, color: kAccent),
+                    ),
+                    Text(
+                      'pts',
+                      style: AppTypography.caption.copyWith(fontSize: 10, color: kAccent.withValues(alpha: 0.6)),
                     ),
                   ],
-                ),
-              ] else ...[
-                Icon(Icons.chevron_right_rounded, size: 18, color: kForegroundMuted),
-              ],
+                )
+              else
+                const Icon(Icons.chevron_right_rounded, size: 18, color: kForegroundDisabled),
             ],
           ),
         ),
