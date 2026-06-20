@@ -341,8 +341,6 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
     final traineeId = trainee['id'] as String;
     final currentUserId = supabase.auth.currentUser?.id ?? '';
     final currentUserName = _currentUserName ?? 'Another user';
-    // Locks older than 10 minutes are considered stale (crashed session).
-    final staleThreshold = DateTime.now().subtract(const Duration(minutes: 10)).toIso8601String();
 
     try {
       // Check if another user already has this trainee locked for scoring.
@@ -353,9 +351,14 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
           .eq('trainee_id', traineeId)
           .maybeSingle();
 
-      if (existing != null &&
+      final bool lockedByOther = existing != null &&
           existing['user_id'] != currentUserId &&
-          (existing['locked_at'] as String).compareTo(staleThreshold) > 0) {
+          DateTime.now().toUtc().difference(
+                DateTime.parse(existing['locked_at'] as String).toUtc(),
+              ).inMinutes <
+              10;
+
+      if (lockedByOther) {
         // Active lock held by someone else — show blocking dialog.
         final otherName = existing['user_name'] as String? ?? 'Another user';
         if (!mounted) return;
