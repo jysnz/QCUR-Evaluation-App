@@ -188,8 +188,10 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildSubActivitiesSection(),
-                        const SizedBox(height: 16),
+                        if (_subActivities.isNotEmpty) ...[
+                          _buildSubActivitiesSection(),
+                          const SizedBox(height: 16),
+                        ],
                         _buildScoringSection(),
                       ],
                     ),
@@ -554,25 +556,25 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
             },
             onConflict: 'activity_id, trainee_id',
           );
+
+          AppCache.instance.invalidate('results:${widget.activityId}');
+          AppCache.instance.invalidate('result:${widget.activityId}:$traineeId');
+
+          if (mounted) {
+            setState(() {
+              _resultsMap[traineeId] = {
+                'activity_id': widget.activityId,
+                'trainee_id': traineeId,
+                'score': score,
+                'feedback': feedbackText.isEmpty ? null : feedbackText,
+                'updated_at': DateTime.now().toIso8601String(),
+              };
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Saved'), duration: Duration(seconds: 1)),
+            );
+          }
         }
-      }
-
-      AppCache.instance.invalidate('results:${widget.activityId}');
-      AppCache.instance.invalidate('result:${widget.activityId}:$traineeId');
-
-      if (mounted) {
-        setState(() {
-          _resultsMap[traineeId] = {
-            'activity_id': widget.activityId,
-            'trainee_id': traineeId,
-            'score': score,
-            'feedback': feedbackText.isEmpty ? null : feedbackText,
-            'updated_at': DateTime.now().toIso8601String(),
-          };
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Saved'), duration: Duration(seconds: 1)),
-        );
       }
     } catch (e) {
       if (mounted) {
@@ -605,8 +607,8 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
     final id = trainee['id'] as String;
     final result = _resultsMap[id];
     final isGraded = result != null && result['score'] != null;
-    final score = isGraded ? result!['score'] : null;
-    final gradedAt = isGraded ? (result!['updated_at'] ?? result['created_at']) as String? : null;
+    final score = isGraded ? result['score'] : null;
+    final gradedAt = isGraded ? (result['updated_at'] ?? result['created_at']) as String? : null;
 
     return AppCard(
       margin: const EdgeInsets.only(bottom: 8),
