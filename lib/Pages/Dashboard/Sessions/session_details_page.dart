@@ -3,6 +3,7 @@ import 'package:qcur_evaluation/Widgets/design_system.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Activities/activity_management_page.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Sessions/session_members_tab.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Sessions/rankings_tab.dart';
+import 'package:qcur_evaluation/Pages/Dashboard/Sessions/session_settings_tab.dart';
 
 class SessionDetailsPage extends StatefulWidget {
   final String sessionId;
@@ -38,6 +39,10 @@ class _SessionDetailsPageState extends State<SessionDetailsPage> {
       RankingsTab(
         sessionId: widget.sessionId,
         visibilityTrigger: _rankingsVisibilityTrigger,
+      ),
+      SessionSettingsTab(
+        sessionId: widget.sessionId,
+        sessionName: widget.sessionName,
       ),
     ];
   }
@@ -94,6 +99,10 @@ class _SessionDetailsPageState extends State<SessionDetailsPage> {
             BottomNavigationBarItem(
               icon: Icon(Icons.emoji_events_outlined),
               label: 'Rankings',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.tune_rounded),
+              label: 'Settings',
             ),
           ],
         ),
