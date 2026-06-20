@@ -144,10 +144,10 @@ class _RegisterPageState extends State<RegisterPage> {
                 label: 'Go to Dashboard',
                 onTap: () {
                   Navigator.of(dialogContext).pop();
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (context) => const DashboardPage()),
-                    (route) => false,
-                  );
+                  // Pop everything back to root — AuthRouter's onAuthStateChange
+                  // listener already detected the new session and will render
+                  // DashboardPage as the home widget.
+                  Navigator.of(context).popUntil((route) => route.isFirst);
                 },
               ),
             ],
