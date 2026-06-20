@@ -50,42 +50,15 @@ class _SessionSettingsTabState extends State<SessionSettingsTab> {
 
   // ---------- Actions ----------
 
-  Future<void> _markAsDone() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: kSurface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius)),
-        title: Row(
-          children: [
-            const Icon(Icons.check_circle_outline_rounded, color: kSuccess, size: 20),
-            const SizedBox(width: 8),
-            const Expanded(child: Text('Mark as Done?', style: AppTypography.h3)),
-          ],
-        ),
-        content: Text(
-          'This will mark "${widget.sessionName}" as completed. You can still edit it afterwards.',
-          style: AppTypography.body,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Mark Done', style: TextStyle(color: kSuccess, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true || !mounted) return;
+  Future<void> _toggleDone(bool markDone) async {
+    final newStatus = markDone ? 'completed' : 'active';
     try {
-      await supabase.from('training_sessions').update({'status': 'completed'}).eq('id', widget.sessionId);
+      await supabase
+          .from('training_sessions')
+          .update({'status': newStatus})
+          .eq('id', widget.sessionId);
       AppCache.instance.invalidate('sessions');
-      setState(() => _session = {...?_session, 'status': 'completed'});
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Session marked as completed'), duration: Duration(seconds: 2)),
-        );
-      }
+      setState(() => _session = {...?_session, 'status': newStatus});
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
@@ -322,16 +295,17 @@ class _SessionSettingsTabState extends State<SessionSettingsTab> {
                     padding: EdgeInsets.zero,
                     child: Column(
                       children: [
-                        if (!isDone) ...[
-                          _tile(
-                            icon: Icons.check_circle_outline_rounded,
-                            iconColor: kSuccess,
-                            title: 'Mark as Done',
-                            subtitle: 'Set this session as completed',
-                            onTap: _markAsDone,
-                          ),
-                          const Divider(height: 1, indent: 56, color: kBorder),
-                        ],
+                        _toggleTile(
+                          icon: isDone
+                              ? Icons.check_circle_rounded
+                              : Icons.check_circle_outline_rounded,
+                          iconColor: kSuccess,
+                          title: 'Mark as Done',
+                          subtitle: isDone ? 'Session is completed' : 'Set this session as completed',
+                          value: isDone,
+                          onChanged: _toggleDone,
+                        ),
+                        const Divider(height: 1, indent: 56, color: kBorder),
                         _tile(
                           icon: Icons.edit_outlined,
                           iconColor: kInfo,
@@ -351,28 +325,6 @@ class _SessionSettingsTabState extends State<SessionSettingsTab> {
                       ],
                     ),
                   ),
-
-                  if (isDone) ...[
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: kSuccess.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(kRadiusSmall),
-                        border: Border.all(color: kSuccess.withValues(alpha: 0.25)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.check_circle_rounded, color: kSuccess, size: 14),
-                          const SizedBox(width: 8),
-                          Text(
-                            'This session is marked as completed.',
-                            style: AppTypography.caption.copyWith(color: kSuccess, fontSize: 11),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
 
                   const SizedBox(height: 28),
 
@@ -407,6 +359,60 @@ class _SessionSettingsTabState extends State<SessionSettingsTab> {
           style: AppTypography.overline.copyWith(color: kForegroundDisabled, fontSize: 10, letterSpacing: 1.2),
         ),
       ],
+    );
+  }
+
+  Widget _toggleTile({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Row(
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: (value ? iconColor : kForegroundDisabled).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(kRadiusSmall),
+            ),
+            child: Icon(icon, size: 17, color: value ? iconColor : kForegroundDisabled),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: AppTypography.body.copyWith(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: value ? iconColor : kForeground,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(subtitle, style: AppTypography.caption.copyWith(fontSize: 11)),
+              ],
+            ),
+          ),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeThumbColor: iconColor,
+            activeTrackColor: iconColor.withValues(alpha: 0.25),
+            inactiveThumbColor: kForegroundDisabled,
+            inactiveTrackColor: kSurfaceElevated,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ],
+      ),
     );
   }
 
