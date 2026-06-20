@@ -250,6 +250,18 @@ class _RegisterPageState extends State<RegisterPage> {
           }
         );
 
+        // If email confirmation is required there is no active session yet.
+        // The DB trigger already created the user_accounts row — skip the upsert
+        // here or it will fail RLS (auth.uid() is null without a session).
+        if (response.session == null && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Account created! Please confirm your email.')),
+          );
+          Navigator.of(context).pop();
+          return;
+        }
+
+        // Session exists → user is authenticated; update their full profile.
         if (response.user != null) {
           await supabase.from('user_accounts').upsert({
             'id': response.user!.id,
@@ -258,14 +270,6 @@ class _RegisterPageState extends State<RegisterPage> {
             'position': _selectedPosition,
             'avatar_url': avatarUrl,
           });
-        }
-
-        if (response.session == null && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Account created! Please confirm your email.')),
-          );
-          Navigator.of(context).pop();
-          return;
         }
       }
       
