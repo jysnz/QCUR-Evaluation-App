@@ -98,6 +98,7 @@ class _AddTraineePageState extends State<AddTraineePage> {
       AppCache.instance.invalidateWhere((k) => k.startsWith('st:'));
 
       if (mounted) {
+        final savedName = _nameController.text.trim();
         if (_createMore) {
           _nameController.clear();
           setState(() {
@@ -105,11 +106,10 @@ class _AddTraineePageState extends State<AddTraineePage> {
             _isSaving = false;
             _anySaved = true;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Trainee added. Ready for next entry.'), duration: Duration(seconds: 2)),
-          );
+          await _showSuccessDialog(savedName, addMore: true);
         } else {
-          Navigator.of(context).pop(true);
+          await _showSuccessDialog(savedName, addMore: false);
+          if (mounted) Navigator.of(context).pop(true);
         }
       }
     } catch (e) {
@@ -120,6 +120,55 @@ class _AddTraineePageState extends State<AddTraineePage> {
         setState(() => _isSaving = false);
       }
     }
+  }
+
+  Future<void> _showSuccessDialog(String name, {required bool addMore}) async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: kSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: kSuccess.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check_rounded, color: kSuccess, size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(child: Text('Trainee Added', style: AppTypography.h3)),
+          ],
+        ),
+        content: Text(
+          addMore
+              ? '$name has been added. Fill in the form below to add another.'
+              : '$name has been successfully added to this session.',
+          style: AppTypography.body,
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kAccent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusLarge)),
+                elevation: 0,
+              ),
+              child: Text(
+                addMore ? 'Add Another' : 'Done',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   String _getInitials(String name) {

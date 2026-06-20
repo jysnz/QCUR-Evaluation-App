@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qcur_evaluation/Services/app_cache.dart';
@@ -342,76 +341,79 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
     final traineeId = trainee['id'] as String;
     final currentUserId = supabase.auth.currentUser?.id ?? '';
     final currentUserName = _currentUserName ?? 'Another user';
-    final channelKey = 'scoring:${widget.activityId}:$traineeId';
+    // Locks older than 10 minutes are considered stale (crashed session).
+    final staleThreshold = DateTime.now().subtract(const Duration(minutes: 10)).toIso8601String();
 
-    // Subscribe to presence channel WITHOUT tracking — initial sync shows who was
-    // already there before us.
-    final syncCompleter = Completer<void>();
-    final channel = supabase.channel(channelKey);
-
-    channel.onPresenceSync((_) {
-      if (!syncCompleter.isCompleted) syncCompleter.complete();
-    });
-    channel.subscribe();
-
-    // Wait for the server to send the current presence state (timeout = 3s)
     try {
-      await syncCompleter.future.timeout(const Duration(seconds: 3));
-    } catch (_) {}
+      // Check if another user already has this trainee locked for scoring.
+      final existing = await supabase
+          .from('scoring_locks')
+          .select()
+          .eq('activity_id', widget.activityId)
+          .eq('trainee_id', traineeId)
+          .maybeSingle();
 
-    if (!mounted) {
-      await supabase.removeChannel(channel);
-      return;
-    }
-
-    // Anyone in the channel at this point was scoring before us
-    final others = channel.presenceState()
-        .expand((s) => s.presences)
-        .where((p) => (p.payload['user_id'] as String?) != currentUserId)
-        .toList();
-
-    if (others.isNotEmpty) {
-      final otherName = others.first.payload['name'] as String? ?? 'Another user';
-      await supabase.removeChannel(channel);
-      if (!mounted) return;
-      await showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: kSurface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius)),
-          title: Row(
-            children: [
-              const Icon(Icons.warning_amber_rounded, color: kWarning, size: 20),
-              const SizedBox(width: 8),
-              const Expanded(child: Text('Currently being scored', style: AppTypography.h3)),
+      if (existing != null &&
+          existing['user_id'] != currentUserId &&
+          (existing['locked_at'] as String).compareTo(staleThreshold) > 0) {
+        // Active lock held by someone else — show blocking dialog.
+        final otherName = existing['user_name'] as String? ?? 'Another user';
+        if (!mounted) return;
+        await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: kSurface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius)),
+            title: Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: kWarning, size: 20),
+                const SizedBox(width: 8),
+                const Expanded(child: Text('Currently being scored', style: AppTypography.h3)),
+              ],
+            ),
+            content: Text(
+              '${trainee['full_name']} is currently being scored by $otherName. Please wait until they\'re done.',
+              style: AppTypography.body,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('OK', style: TextStyle(color: kAccent, fontWeight: FontWeight.w600)),
+              ),
             ],
           ),
-          content: Text(
-            '${trainee['full_name']} is currently being scored by $otherName. Please wait until they\'re done.',
-            style: AppTypography.body,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text('OK', style: TextStyle(color: kAccent, fontWeight: FontWeight.w600)),
-            ),
-          ],
-        ),
+        );
+        return;
+      }
+
+      // Acquire (or refresh own stale) lock via upsert.
+      await supabase.from('scoring_locks').upsert(
+        {
+          'activity_id': widget.activityId,
+          'trainee_id': traineeId,
+          'user_id': currentUserId,
+          'user_name': currentUserName,
+          'locked_at': DateTime.now().toIso8601String(),
+        },
+        onConflict: 'activity_id, trainee_id',
       );
-      return;
+
+      if (_subActivities.isNotEmpty) {
+        await _openSubScoringSheet(trainee);
+      } else {
+        await _openSingleScoringSheet(trainee);
+      }
+    } finally {
+      // Always release the lock when the sheet closes or on any error.
+      try {
+        await supabase
+            .from('scoring_locks')
+            .delete()
+            .eq('activity_id', widget.activityId)
+            .eq('trainee_id', traineeId)
+            .eq('user_id', currentUserId);
+      } catch (_) {}
     }
-
-    // No one else — track our presence and open the sheet
-    await channel.track({'user_id': currentUserId, 'name': currentUserName});
-
-    if (_subActivities.isNotEmpty) {
-      await _openSubScoringSheet(trainee);
-    } else {
-      await _openSingleScoringSheet(trainee);
-    }
-
-    // Sheet is closed — leave the presence channel
-    await supabase.removeChannel(channel);
   }
 
   Future<void> _openSingleScoringSheet(Map<String, dynamic> trainee) async {
