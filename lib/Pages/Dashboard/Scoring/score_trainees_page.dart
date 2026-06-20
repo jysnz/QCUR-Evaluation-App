@@ -11,6 +11,7 @@ class ScoreTraineesPage extends StatefulWidget {
   final String? sessionName;
   final String? roleId;
   final String? roleName;
+  final String? highlightedSubId;
 
   const ScoreTraineesPage({
     super.key,
@@ -20,6 +21,7 @@ class ScoreTraineesPage extends StatefulWidget {
     this.sessionName,
     this.roleId,
     this.roleName,
+    this.highlightedSubId,
   });
 
   @override
@@ -483,8 +485,9 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
     final subId = sub['id'] as String;
     final result = _subResultsMap['$subId:$traineeId'];
     final isScored = result != null && result['score'] != null;
+    final isHighlighted = subId == widget.highlightedSubId;
 
-    return Column(
+    final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
@@ -493,16 +496,30 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
               width: 22,
               height: 22,
               decoration: BoxDecoration(
-                color: isScored ? kAccent.withValues(alpha: 0.12) : kSurfaceElevated,
+                color: isHighlighted
+                    ? kAccent.withValues(alpha: 0.2)
+                    : isScored
+                        ? kAccent.withValues(alpha: 0.12)
+                        : kSurfaceElevated,
                 shape: BoxShape.circle,
-                border: Border.all(color: isScored ? kAccent.withValues(alpha: 0.4) : kBorder.withValues(alpha: 0.5)),
+                border: Border.all(
+                  color: isHighlighted
+                      ? kAccent.withValues(alpha: 0.7)
+                      : isScored
+                          ? kAccent.withValues(alpha: 0.4)
+                          : kBorder.withValues(alpha: 0.5),
+                ),
               ),
               child: Center(
                 child: isScored
                     ? const Icon(Icons.check_rounded, size: 12, color: kAccent)
                     : Text(
                         '${index + 1}',
-                        style: AppTypography.caption.copyWith(color: kForegroundMuted, fontSize: 10, fontWeight: FontWeight.bold),
+                        style: AppTypography.caption.copyWith(
+                          color: isHighlighted ? kAccent : kForegroundMuted,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
               ),
             ),
@@ -510,14 +527,42 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
             Expanded(
               child: Text(
                 sub['name'].toString(),
-                style: AppTypography.body.copyWith(fontWeight: FontWeight.w600, fontSize: 13),
+                style: AppTypography.body.copyWith(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: isHighlighted ? kAccent : kForeground,
+                ),
               ),
             ),
+            if (isHighlighted)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: kAccent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'Selected',
+                  style: TextStyle(color: kAccent, fontSize: 9, fontWeight: FontWeight.w700),
+                ),
+              ),
           ],
         ),
         const SizedBox(height: 10),
         _buildScoreField(_subScoreControllers[traineeId]![subId]!),
       ],
+    );
+
+    if (!isHighlighted) return content;
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: kAccent.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(kRadiusSmall),
+        border: Border.all(color: kAccent.withValues(alpha: 0.3)),
+      ),
+      child: content,
     );
   }
 

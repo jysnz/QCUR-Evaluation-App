@@ -265,18 +265,38 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
           color: hasSubActivities ? kSurfaceElevated.withValues(alpha: 0.6) : kSurface,
           child: InkWell(
               onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => ScoreTraineesPage(
-                      sessionId: widget.sessionId,
-                      activityId: activity['id'],
-                      activityName: activity['name'],
-                      sessionName: widget.sessionName,
-                      roleId: activity['target_role_id'],
-                      roleName: roleName,
+                final isSub = activity['parent_id'] != null;
+                if (isSub) {
+                  final parentId = activity['parent_id'] as String;
+                  final parent = _activities.firstWhere((a) => a['id'] == parentId);
+                  final parentRoleName = parent['display_role'] ?? parent['target_role'];
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => ScoreTraineesPage(
+                        sessionId: widget.sessionId,
+                        activityId: parentId,
+                        activityName: parent['name'].toString(),
+                        sessionName: widget.sessionName,
+                        roleId: parent['target_role_id'] as String?,
+                        roleName: parentRoleName?.toString(),
+                        highlightedSubId: activity['id'] as String,
+                      ),
                     ),
-                  ),
-                ).then((_) => _fetchData());
+                  ).then((_) => _fetchData());
+                } else {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => ScoreTraineesPage(
+                        sessionId: widget.sessionId,
+                        activityId: activity['id'],
+                        activityName: activity['name'],
+                        sessionName: widget.sessionName,
+                        roleId: activity['target_role_id'],
+                        roleName: roleName,
+                      ),
+                    ),
+                  ).then((_) => _fetchData());
+                }
               },
               borderRadius: BorderRadius.circular(kRadius),
               splashColor: kAccent.withValues(alpha: 0.08),

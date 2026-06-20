@@ -50,13 +50,24 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
   Future<void> _fetchData() async {
     setState(() => _isLoading = true);
     try {
-      final cached = AppCache.instance.get<List<dynamic>>('trainees');
-      final allTraineesData = cached ??
-          await supabase.from('trainees').select().order('full_name');
-      if (cached == null) AppCache.instance.set('trainees', allTraineesData);
+      final cacheKey = 'st_full:${widget.sessionId}';
+      final cached = AppCache.instance.get<List<dynamic>>(cacheKey);
+      final sessionMembersData = cached ??
+          await supabase
+              .from('session_trainees')
+              .select('trainees!inner(*)')
+              .eq('session_id', widget.sessionId);
+      if (cached == null) {
+        AppCache.instance.set(cacheKey, sessionMembersData, ttl: const Duration(minutes: 3));
+      }
+
+      final traineesList = sessionMembersData
+          .map((m) => m['trainees'] as Map<String, dynamic>)
+          .toList()
+        ..sort((a, b) => a['full_name'].toString().compareTo(b['full_name'].toString()));
 
       setState(() {
-        _allTrainees = List<Map<String, dynamic>>.from(allTraineesData);
+        _allTrainees = traineesList;
         _isLoading = false;
       });
     } catch (e) {
