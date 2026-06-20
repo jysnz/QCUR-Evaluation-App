@@ -186,6 +186,94 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
+  Future<void> _showRateLimitDialog() async {
+    return showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: kSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            // Illustration
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF3CD),
+                shape: BoxShape.circle,
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  const Icon(Icons.mark_email_unread_rounded, size: 52, color: Color(0xFFE6A817)),
+                  Positioned(
+                    bottom: 12,
+                    right: 10,
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFE6A817),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.hourglass_top_rounded, size: 14, color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Too Many Attempts',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'We\'ve sent too many emails in a short time. Please wait a few minutes before trying again.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.6),
+                fontSize: 13,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'This is a temporary limit to protect against spam.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.35),
+                fontSize: 11,
+              ),
+            ),
+            const SizedBox(height: 28),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFE6A817),
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius)),
+                  elevation: 0,
+                ),
+                child: const Text('Got it', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _register() async {
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty || _nameController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill all required fields')));
@@ -286,12 +374,22 @@ class _RegisterPageState extends State<RegisterPage> {
     } on AuthException catch (e) {
       if (mounted) {
         setState(() => _isRegistering = false);
-        _showErrorDialog(e.message);
+        final msg = e.message.toLowerCase();
+        if (msg.contains('rate limit') || msg.contains('over_email_send_rate_limit') || msg.contains('email rate')) {
+          _showRateLimitDialog();
+        } else {
+          _showErrorDialog(e.message);
+        }
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isRegistering = false);
-        _showErrorDialog(e.toString());
+        final msg = e.toString().toLowerCase();
+        if (msg.contains('rate limit') || msg.contains('over_email_send_rate_limit') || msg.contains('email rate')) {
+          _showRateLimitDialog();
+        } else {
+          _showErrorDialog(e.toString());
+        }
       }
     }
   }
