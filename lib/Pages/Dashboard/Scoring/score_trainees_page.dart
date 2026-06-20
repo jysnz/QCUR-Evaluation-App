@@ -3,7 +3,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qcur_evaluation/Services/app_cache.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Activities/create_activity_page.dart';
-import 'package:qcur_evaluation/Pages/Dashboard/Scoring/score_trainee_detail_page.dart';
 
 class ScoreTraineesPage extends StatefulWidget {
   final String sessionId;
@@ -239,17 +238,32 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
             else
               ..._subActivities.map((sub) => Padding(
                 padding: const EdgeInsets.only(bottom: 6),
-                child: Row(
-                  children: [
-                    Icon(Icons.subdirectory_arrow_right_rounded, size: 16, color: kForegroundMuted),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        sub['name'].toString(),
-                        style: AppTypography.body.copyWith(fontSize: 13),
+                child: Material(
+                  color: kSurfaceElevated.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(kRadiusSmall),
+                  child: InkWell(
+                    onTap: () => _navigateToScoreSubActivity(sub),
+                    borderRadius: BorderRadius.circular(kRadiusSmall),
+                    splashColor: kAccent.withValues(alpha: 0.08),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.subdirectory_arrow_right_rounded, size: 16, color: kAccent),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              sub['name'].toString(),
+                              style: AppTypography.body.copyWith(fontSize: 13, fontWeight: FontWeight.w500),
+                            ),
+                          ),
+                          const Text('Score', style: TextStyle(color: kAccent, fontSize: 11, fontWeight: FontWeight.w600)),
+                          const SizedBox(width: 2),
+                          const Icon(Icons.chevron_right_rounded, size: 16, color: kAccent),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
               )),
             const SizedBox(height: 8),
@@ -572,24 +586,19 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
     }
   }
 
-  void _openTraineeScoringFlow(Map<String, dynamic> trainee) {
-    if (_subActivities.isNotEmpty) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => ScoreTraineeDetailPage(
-            sessionId: widget.sessionId,
-            activityId: widget.activityId,
-            activityName: widget.activityName,
-            sessionName: widget.sessionName,
-            roleName: widget.roleName,
-            trainee: trainee,
-            subActivities: _subActivities,
-          ),
+  void _navigateToScoreSubActivity(Map<String, dynamic> sub) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => ScoreTraineesPage(
+          sessionId: widget.sessionId,
+          activityId: sub['id'] as String,
+          activityName: sub['name'].toString(),
+          sessionName: widget.sessionName,
+          roleId: (sub['target_role_id'] ?? widget.roleId) as String?,
+          roleName: (sub['target_role'] ?? widget.roleName) as String?,
         ),
-      );
-    } else {
-      _openTraineeScoringSheet(trainee);
-    }
+      ),
+    ).then((_) => _fetchData());
   }
 
   Widget _buildTraineeScoringCard(Map<String, dynamic> trainee) {
@@ -606,7 +615,7 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
         color: isGraded ? kAccent.withValues(alpha: 0.25) : kBorder.withValues(alpha: 0.5),
       ),
       child: InkWell(
-        onTap: () => _openTraineeScoringFlow(trainee),
+        onTap: () => _openTraineeScoringSheet(trainee),
         borderRadius: BorderRadius.circular(kRadius),
         splashColor: kAccent.withValues(alpha: 0.08),
         highlightColor: kAccent.withValues(alpha: 0.04),
