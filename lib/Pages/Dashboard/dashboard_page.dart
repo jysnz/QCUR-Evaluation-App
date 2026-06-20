@@ -426,12 +426,6 @@ class _SessionsTabState extends State<_SessionsTab> {
                           ),
                         ),
                         Center(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            child: AppStatusBadge(label: session['status'], color: color),
-                          ),
-                        ),
-                        Center(
                           child: PopupMenuButton<String>(
                             icon: const Icon(Icons.more_vert_rounded, color: kForegroundDisabled, size: 18),
                             color: kSurfaceElevated,

@@ -238,7 +238,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
                       Padding(
                         padding: const EdgeInsets.all(kPadding),
                         child: AppButton(
-                          label: 'Add Root Activity',
+                          label: 'Add Activity',
                           icon: Icons.add_circle_outline,
                           onTap: () => _navigateToCreateActivity(),
                         ),
