@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qcur_evaluation/Services/app_cache.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Sessions/create_session_page.dart';
+import 'package:qcur_evaluation/Pages/Dashboard/Sessions/edit_session_page.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Sessions/session_details_page.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Trainees/trainees_page.dart';
 import 'package:qcur_evaluation/Pages/Auth/account_page.dart';
@@ -125,6 +126,39 @@ class _SessionsTabState extends State<_SessionsTab> {
         );
       }
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _deleteSession(Map<String, dynamic> session) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: kSurface,
+        title: const Text('Delete session?', style: AppTypography.h3),
+        content: Text(
+          'This will permanently delete "${session['name']}" and all its activities, scores, and members. This cannot be undone.',
+          style: AppTypography.body,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete', style: TextStyle(color: kError, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    try {
+      final sessionId = session['id'] as String;
+      await supabase.from('training_sessions').delete().eq('id', sessionId);
+      AppCache.instance.invalidate('sessions');
+      AppCache.instance.invalidateWhere((k) =>
+          k.contains(sessionId) || k.startsWith('st:'));
+      _fetchSessions();
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Delete failed: $e')));
     }
   }
 
@@ -397,10 +431,46 @@ class _SessionsTabState extends State<_SessionsTab> {
                             child: AppStatusBadge(label: session['status'], color: color),
                           ),
                         ),
-                        const Center(
-                          child: Icon(Icons.chevron_right_rounded, color: kForegroundDisabled, size: 18),
+                        Center(
+                          child: PopupMenuButton<String>(
+                            icon: const Icon(Icons.more_vert_rounded, color: kForegroundDisabled, size: 18),
+                            color: kSurfaceElevated,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusSmall)),
+                            onSelected: (value) async {
+                              if (value == 'edit') {
+                                final result = await Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => EditSessionPage(session: session),
+                                  ),
+                                );
+                                if (result == true) _fetchSessions();
+                              } else if (value == 'delete') {
+                                _deleteSession(session);
+                              }
+                            },
+                            itemBuilder: (_) => [
+                              PopupMenuItem(
+                                value: 'edit',
+                                height: 40,
+                                child: Row(children: [
+                                  const Icon(Icons.edit_outlined, size: 15, color: kForeground),
+                                  const SizedBox(width: 10),
+                                  Text('Edit', style: AppTypography.body.copyWith(fontSize: 13)),
+                                ]),
+                              ),
+                              PopupMenuItem(
+                                value: 'delete',
+                                height: 40,
+                                child: Row(children: [
+                                  const Icon(Icons.delete_outline_rounded, size: 15, color: kError),
+                                  const SizedBox(width: 10),
+                                  Text('Delete', style: AppTypography.body.copyWith(fontSize: 13, color: kError)),
+                                ]),
+                              ),
+                            ],
+                          ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 4),
                       ],
                     ),
                   ),
