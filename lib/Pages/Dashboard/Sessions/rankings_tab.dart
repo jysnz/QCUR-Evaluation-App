@@ -5,8 +5,13 @@ import 'package:qcur_evaluation/Widgets/design_system.dart';
 
 class RankingsTab extends StatefulWidget {
   final String sessionId;
+  final ValueNotifier<int> visibilityTrigger;
 
-  const RankingsTab({super.key, required this.sessionId});
+  const RankingsTab({
+    super.key,
+    required this.sessionId,
+    required this.visibilityTrigger,
+  });
 
   @override
   State<RankingsTab> createState() => _RankingsTabState();
@@ -36,6 +41,7 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    widget.visibilityTrigger.addListener(_onTabVisible);
     _fetchAll();
     _subscribeToChanges();
   }
@@ -43,6 +49,7 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    widget.visibilityTrigger.removeListener(_onTabVisible);
     _unsubscribeFromChanges();
     super.dispose();
   }
@@ -52,9 +59,16 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
       _unsubscribeFromChanges();
     } else if (state == AppLifecycleState.resumed) {
-      _fetchAll();
+      _checkAndFetchIfStale();
       _subscribeToChanges();
     }
+  }
+
+  void _onTabVisible() => _checkAndFetchIfStale();
+
+  void _checkAndFetchIfStale() {
+    final cached = AppCache.instance.get<Map<String, dynamic>>('rankings:${widget.sessionId}');
+    if (cached == null) _fetchAll();
   }
 
   void _subscribeToChanges() {
@@ -65,7 +79,10 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'activity_results',
-          callback: (_) => _fetchAll(),
+          callback: (_) {
+            AppCache.instance.invalidate('rankings:${widget.sessionId}');
+            _fetchAll(forceRefresh: true);
+          },
         )
         .subscribe();
   }
@@ -79,10 +96,10 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
 
   // ---------- Data ----------
 
-  Future<void> _fetchAll() async {
+  Future<void> _fetchAll({bool forceRefresh = false}) async {
     setState(() => _isLoading = true);
     try {
-      await Future.wait([_fetchRoles(), _fetchActivitiesAndResults()]);
+      await Future.wait([_fetchRoles(), _fetchActivitiesAndResults(forceRefresh: forceRefresh)]);
     } catch (e) {
       debugPrint('Rankings fetch error: $e');
     }
@@ -98,8 +115,18 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
     _roles = List<Map<String, dynamic>>.from(data);
   }
 
-  Future<void> _fetchActivitiesAndResults() async {
-    // 1. Parent activities (no is_graded filter — parents with subs have is_graded=false)
+  Future<void> _fetchActivitiesAndResults({bool forceRefresh = false}) async {
+    final cacheKey = 'rankings:${widget.sessionId}';
+
+    if (!forceRefresh) {
+      final cached = AppCache.instance.get<Map<String, dynamic>>(cacheKey);
+      if (cached != null) {
+        _buildFromCached(cached);
+        return;
+      }
+    }
+
+    // 1. Parent activities
     final parentsData = await supabase
         .from('activities')
         .select('id, name, scoring_direction, target_role_id, roles(name)')
@@ -112,6 +139,7 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
     if (_parentActivities.isEmpty) {
       _subActivitiesMap = {};
       _activityResultsMap = {};
+      AppCache.instance.set(cacheKey, {'parents': List.from(parentsData), 'subs': [], 'results': []});
       return;
     }
 
@@ -132,7 +160,7 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
     _subActivitiesMap = subMap;
 
     // 3. Fetch results for parents AND all sub-activities
-    final allSubIds = (subsData).map((s) => s['id'] as String).toList();
+    final allSubIds = (subsData as List).map((s) => s['id'] as String).toList();
     final allIds = [...parentIds, ...allSubIds];
 
     final resultsData = await supabase
@@ -159,6 +187,34 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
       map.putIfAbsent(actId, () => []).add(Map<String, dynamic>.from(r));
     }
     _activityResultsMap = map;
+
+    AppCache.instance.set(cacheKey, {
+      'parents': List.from(parentsData),
+      'subs': List.from(subsData),
+      'results': List.from(resultsData),
+    });
+  }
+
+  void _buildFromCached(Map<String, dynamic> cached) {
+    final parentsData = cached['parents'] as List;
+    final subsData = cached['subs'] as List;
+    final resultsData = cached['results'] as List;
+
+    _parentActivities = List<Map<String, dynamic>>.from(parentsData);
+
+    final Map<String, List<Map<String, dynamic>>> subMap = {};
+    for (final sub in subsData) {
+      final pid = sub['parent_id'] as String;
+      subMap.putIfAbsent(pid, () => []).add(Map<String, dynamic>.from(sub));
+    }
+    _subActivitiesMap = subMap;
+
+    final Map<String, List<Map<String, dynamic>>> map = {};
+    for (final r in resultsData) {
+      final actId = r['activity_id'] as String;
+      map.putIfAbsent(actId, () => []).add(Map<String, dynamic>.from(r));
+    }
+    _activityResultsMap = map;
   }
 
   // ---------- Computed ----------
@@ -166,6 +222,12 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
   // Parent activities visible for the selected role
   List<Map<String, dynamic>> get _activitiesForRole {
     if (_selectedRoleId == null) return [];
+    // "All Roles" → only activities explicitly assigned to all roles (no specific role)
+    if (_selectedRoleId == '__all__') {
+      return _parentActivities
+          .where((a) => a['target_role_id'] == null)
+          .toList();
+    }
     return _parentActivities.where((a) {
       final rid = a['target_role_id'];
       return rid == null || rid.toString() == _selectedRoleId;
@@ -174,7 +236,7 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
 
   // Filter results by selected role
   List<Map<String, dynamic>> _filterByRole(List<Map<String, dynamic>> results) {
-    if (_selectedRoleId == null) return results;
+    if (_selectedRoleId == null || _selectedRoleId == '__all__') return results;
     return results.where((r) {
       final trainee = r['trainees'] as Map<String, dynamic>;
       final rolesList = trainee['trainee_roles'] as List<dynamic>;
@@ -333,58 +395,61 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: const Text('Leaderboard', style: AppTypography.h3),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: kAccent),
-            onPressed: _fetchAll,
-          ),
-        ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.only(bottom: kPadding),
-        children: [
-          // Role dropdown
-          Padding(
-            padding: const EdgeInsets.fromLTRB(kPadding, 4, kPadding, 8),
-            child: _buildRoleDropdown(),
-          ),
-
-          // Activity filter
-          if (_selectedRoleId != null)
+      body: RefreshIndicator(
+        onRefresh: () async {
+          AppCache.instance.invalidate('rankings:${widget.sessionId}');
+          await _fetchAll(forceRefresh: true);
+        },
+        color: kAccent,
+        backgroundColor: kSurfaceElevated,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.only(bottom: kPadding),
+          children: [
+            // Role dropdown
             Padding(
-              padding: const EdgeInsets.fromLTRB(kPadding, 0, kPadding, 8),
-              child: _buildActivityFilter(),
+              padding: const EdgeInsets.fromLTRB(kPadding, 4, kPadding, 8),
+              child: _buildRoleDropdown(),
             ),
 
-          // Content
-          if (_selectedRoleId == null)
-            _centerHint(
-              icon: Icons.group_outlined,
-              title: 'Select a role',
-              subtitle: 'Choose a role to see available activities.',
-            )
-          else if (_selectedParentIds.isEmpty)
-            _centerHint(
-              icon: Icons.checklist_rounded,
-              title: 'Select activities',
-              subtitle:
-                  'Check one or more activities above to view rankings.',
-            )
-          else if (rankings.isEmpty)
-            _centerHint(
-              icon: Icons.emoji_events_rounded,
-              title: 'No scores yet',
-              subtitle:
-                  'No trainees with this role have been scored for the selected activities.',
-            )
-          else
-            ...rankings.map(
-              (r) => Padding(
-                padding: const EdgeInsets.fromLTRB(kPadding, 0, kPadding, 0),
-                child: _buildActivitySection(r),
+            // Activity filter
+            if (_selectedRoleId != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(kPadding, 0, kPadding, 8),
+                child: _buildActivityFilter(),
               ),
-            ),
-        ],
+
+            // Content
+            if (_selectedRoleId == null)
+              _centerHint(
+                icon: Icons.group_outlined,
+                title: 'Select a role',
+                subtitle: 'Choose a role to see available activities.',
+              )
+            else if (_selectedParentIds.isEmpty)
+              _centerHint(
+                icon: Icons.checklist_rounded,
+                title: 'Select activities',
+                subtitle:
+                    'Check one or more activities above to view rankings.',
+              )
+            else if (rankings.isEmpty)
+              _centerHint(
+                icon: Icons.emoji_events_rounded,
+                title: 'No scores yet',
+                subtitle:
+                    'No trainees with this role have been scored for the selected activities.',
+              )
+            else
+              ...rankings.map(
+                (r) => Padding(
+                  padding: const EdgeInsets.fromLTRB(kPadding, 0, kPadding, 0),
+                  child: _buildActivitySection(r),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -406,8 +471,21 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
                   style: AppTypography.body.copyWith(color: kForegroundDisabled)),
             ],
           ),
-          selectedItemBuilder: (_) => _roles.map((role) {
-            return Align(
+          selectedItemBuilder: (_) => [
+            // "All Roles" selected item
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Row(
+                children: [
+                  const Icon(Icons.groups_rounded, size: 16, color: kAccent),
+                  const SizedBox(width: 8),
+                  Text('All Roles',
+                      style: AppTypography.body
+                          .copyWith(color: kAccent, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+            ..._roles.map((role) => Align(
               alignment: Alignment.centerLeft,
               child: Row(
                 children: [
@@ -420,21 +498,35 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
                   ),
                 ],
               ),
-            );
-          }).toList(),
-          items: _roles
-              .map((role) => DropdownMenuItem<String>(
-                    value: role['id'].toString(),
-                    child: Text(role['name'].toString(), style: AppTypography.body),
-                  ))
-              .toList(),
+            )),
+          ],
+          items: [
+            DropdownMenuItem<String>(
+              value: '__all__',
+              child: Row(
+                children: [
+                  const Icon(Icons.groups_rounded, size: 16, color: kAccent),
+                  const SizedBox(width: 8),
+                  Text('All Roles',
+                      style: AppTypography.body
+                          .copyWith(color: kAccent, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+            ..._roles.map((role) => DropdownMenuItem<String>(
+                  value: role['id'].toString(),
+                  child: Text(role['name'].toString(), style: AppTypography.body),
+                )),
+          ],
           onChanged: (value) {
             if (value == null) return;
             setState(() {
               _selectedRoleId = value;
-              _selectedRoleName = _roles
-                  .firstWhere((r) => r['id'].toString() == value)['name']
-                  .toString();
+              _selectedRoleName = value == '__all__'
+                  ? 'All Roles'
+                  : _roles
+                      .firstWhere((r) => r['id'].toString() == value)['name']
+                      .toString();
               _selectedParentIds = {};
               _selectedSubIds = {};
             });
@@ -496,8 +588,6 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
     final subs = _subActivitiesMap[actId] ?? [];
     final hasSubs = subs.isNotEmpty;
 
-    // For activities with no subs: check if there are direct results
-    // For activities with subs: check if any sub has results
     final hasResults = hasSubs
         ? subs.any((s) => _activityResultsMap.containsKey(s['id']))
         : _activityResultsMap.containsKey(actId);
@@ -514,7 +604,6 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
                       _selectedSubIds.remove(actId);
                     } else {
                       _selectedParentIds.add(actId);
-                      // Default: all sub-questions
                       if (hasSubs) _selectedSubIds[actId] = null;
                     }
                   })
@@ -536,7 +625,6 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
             ),
             child: Row(
               children: [
-                // Checkbox indicator
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
                   width: 18,
@@ -554,7 +642,6 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
                       : null,
                 ),
                 const SizedBox(width: 10),
-                // Activity name
                 Expanded(
                   child: Row(
                     children: [
@@ -785,45 +872,60 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
       padding: const EdgeInsets.all(12),
       border:
           rank <= 3 ? Border.all(color: rankColor.withValues(alpha: 0.3)) : null,
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: rank <= 3
-                  ? rankColor.withValues(alpha: 0.1)
-                  : kSurfaceElevated,
-              shape: BoxShape.circle,
-              border: Border.all(color: rankColor.withValues(alpha: 0.5)),
-            ),
-            child: Center(
-              child: Text(rank.toString(),
-                  style: AppTypography.h3.copyWith(
-                      color: rankColor, fontSize: 14)),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              trainee['name'].toString(),
-              style: AppTypography.bodyLg.copyWith(fontWeight: FontWeight.bold),
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                (trainee['score'] as double).toStringAsFixed(2),
-                style: AppTypography.h2.copyWith(color: kAccent),
+      child: InkWell(
+        onTap: () => _openTraineeDetail(
+          traineeId: trainee['trainee_id'] as String,
+          traineeName: trainee['name'] as String,
+        ),
+        borderRadius: BorderRadius.circular(kRadius),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: rank <= 3
+                    ? rankColor.withValues(alpha: 0.1)
+                    : kSurfaceElevated,
+                shape: BoxShape.circle,
+                border: Border.all(color: rankColor.withValues(alpha: 0.5)),
               ),
-              Text(
-                isAggregate ? 'Avg Score' : 'Score',
-                style: AppTypography.label.copyWith(fontSize: 10),
+              child: Center(
+                child: Text(rank.toString(),
+                    style: AppTypography.h3.copyWith(
+                        color: rankColor, fontSize: 14)),
               ),
-            ],
-          ),
-        ],
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                trainee['name'].toString(),
+                style: AppTypography.bodyLg.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded,
+                color: kForegroundMuted, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openTraineeDetail({
+    required String traineeId,
+    required String traineeName,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _TraineeScoreSheet(
+        traineeId: traineeId,
+        traineeName: traineeName,
+        selectedRoleId: _selectedRoleId!,
+        parentActivities: _activitiesForRole,
+        subActivitiesMap: _subActivitiesMap,
+        activityResultsMap: _activityResultsMap,
       ),
     );
   }
@@ -843,4 +945,470 @@ class _ActivityRanking {
     required this.ranked,
     required this.isAggregate,
   });
+}
+
+// ---------- Trainee score detail bottom sheet ----------
+
+class _TraineeScoreSheet extends StatefulWidget {
+  final String traineeId;
+  final String traineeName;
+  final String selectedRoleId;
+  final List<Map<String, dynamic>> parentActivities;
+  final Map<String, List<Map<String, dynamic>>> subActivitiesMap;
+  final Map<String, List<Map<String, dynamic>>> activityResultsMap;
+
+  const _TraineeScoreSheet({
+    required this.traineeId,
+    required this.traineeName,
+    required this.selectedRoleId,
+    required this.parentActivities,
+    required this.subActivitiesMap,
+    required this.activityResultsMap,
+  });
+
+  @override
+  State<_TraineeScoreSheet> createState() => _TraineeScoreSheetState();
+}
+
+class _TraineeScoreSheetState extends State<_TraineeScoreSheet> {
+  // parentId → selected sub-activity ID; null = All sub-questions
+  final Map<String, String?> _selectedSubIds = {};
+
+  List<Map<String, dynamic>> _filterByRole(
+      List<Map<String, dynamic>> results) {
+    if (widget.selectedRoleId == '__all__') return results;
+    return results.where((r) {
+      final trainee = r['trainees'] as Map<String, dynamic>;
+      final rolesList = trainee['trainee_roles'] as List<dynamic>;
+      return rolesList.any((re) =>
+          re['roles'] != null &&
+          re['roles']['id'].toString() == widget.selectedRoleId);
+    }).toList();
+  }
+
+  // {score, rank, total, isAggregate} for a directly scored activity
+  Map<String, dynamic>? _directInfo(String actId, String scoringDirection) {
+    final filtered =
+        _filterByRole(widget.activityResultsMap[actId] ?? []);
+    if (filtered.isEmpty) return null;
+
+    final sorted = filtered
+        .map((r) {
+          final t = r['trainees'] as Map<String, dynamic>;
+          return {
+            'trainee_id': t['id'] as String,
+            'score': (r['score'] as num).toDouble(),
+          };
+        })
+        .toList()
+      ..sort((a, b) => scoringDirection == 'higher_is_better'
+          ? (b['score'] as double).compareTo(a['score'] as double)
+          : (a['score'] as double).compareTo(b['score'] as double));
+
+    final idx =
+        sorted.indexWhere((e) => e['trainee_id'] == widget.traineeId);
+    if (idx == -1) return null;
+
+    return {
+      'score': sorted[idx]['score'] as double,
+      'rank': idx + 1,
+      'total': sorted.length,
+      'isAggregate': false,
+    };
+  }
+
+  // {score, rank, total, isAggregate:true}
+  // Rank is computed via normalization; score is the trainee's raw average.
+  Map<String, dynamic>? _aggregateInfo(
+      String parentId, List<Map<String, dynamic>> subs) {
+    final Map<String, List<double>> traineeNorm = {};
+    final List<double> thisTraineeRaw = [];
+
+    for (final sub in subs) {
+      final subId = sub['id'] as String;
+      final direction =
+          (sub['scoring_direction'] ?? 'higher_is_better') as String;
+      final filtered =
+          _filterByRole(widget.activityResultsMap[subId] ?? []);
+      if (filtered.isEmpty) continue;
+
+      final scores =
+          filtered.map((r) => (r['score'] as num).toDouble()).toList();
+      final minS = scores.reduce((a, b) => a < b ? a : b);
+      final maxS = scores.reduce((a, b) => a > b ? a : b);
+
+      for (final r in filtered) {
+        final t = r['trainees'] as Map<String, dynamic>;
+        final tid = t['id'] as String;
+        final raw = (r['score'] as num).toDouble();
+        final double norm;
+        if (maxS == minS) {
+          norm = 100.0;
+        } else if (direction == 'higher_is_better') {
+          norm = (raw - minS) / (maxS - minS) * 100;
+        } else {
+          norm = (maxS - raw) / (maxS - minS) * 100;
+        }
+        traineeNorm.putIfAbsent(tid, () => []).add(norm);
+        if (tid == widget.traineeId) thisTraineeRaw.add(raw);
+      }
+    }
+
+    if (traineeNorm.isEmpty) return null;
+
+    final ranked = traineeNorm.entries
+        .map((e) {
+          final avg = e.value.reduce((a, b) => a + b) / e.value.length;
+          return {'trainee_id': e.key, 'score': avg};
+        })
+        .toList()
+      ..sort((a, b) =>
+          (b['score'] as double).compareTo(a['score'] as double));
+
+    final idx =
+        ranked.indexWhere((e) => e['trainee_id'] == widget.traineeId);
+    if (idx == -1) return null;
+
+    final rawAvg = thisTraineeRaw.isEmpty
+        ? 0.0
+        : thisTraineeRaw.reduce((a, b) => a + b) / thisTraineeRaw.length;
+
+    return {
+      'score': rawAvg,
+      'rank': idx + 1,
+      'total': ranked.length,
+      'isAggregate': true,
+    };
+  }
+
+  Color _rankColor(int? rank) {
+    if (rank == 1) return const Color(0xFFFFD700);
+    if (rank == 2) return const Color(0xFFC0C0C0);
+    if (rank == 3) return const Color(0xFFCD7F32);
+    return kForegroundMuted;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.75,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      builder: (_, controller) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: kSurface,
+            borderRadius:
+                BorderRadius.vertical(top: Radius.circular(kRadius)),
+          ),
+          child: Column(
+            children: [
+              // Drag handle
+              Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 8),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: kBorder,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              // Header
+              Padding(
+                padding:
+                    const EdgeInsets.fromLTRB(kPadding, 4, kPadding, 12),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: kAccent.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          widget.traineeName[0].toUpperCase(),
+                          style: AppTypography.h2.copyWith(color: kAccent),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(widget.traineeName,
+                              style: AppTypography.h3),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Scores & rankings per activity',
+                            style: AppTypography.caption
+                                .copyWith(color: kForegroundMuted),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded,
+                          color: kForegroundMuted, size: 20),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              // Activity list
+              Expanded(
+                child: widget.parentActivities.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No activities for this role',
+                          style: AppTypography.caption
+                              .copyWith(color: kForegroundDisabled),
+                        ),
+                      )
+                    : ListView(
+                        controller: controller,
+                        padding: const EdgeInsets.all(kPadding),
+                        children: widget.parentActivities
+                            .map(_buildActivityCard)
+                            .toList(),
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildActivityCard(Map<String, dynamic> act) {
+    final parentId = act['id'] as String;
+    final subs = widget.subActivitiesMap[parentId] ?? [];
+    final hasSubs = subs.isNotEmpty;
+
+    Map<String, dynamic>? info;
+
+    if (!hasSubs) {
+      info = _directInfo(
+        parentId,
+        (act['scoring_direction'] ?? 'higher_is_better') as String,
+      );
+    } else {
+      final selectedSubId = _selectedSubIds[parentId];
+      if (selectedSubId == null) {
+        info = _aggregateInfo(parentId, subs);
+      } else {
+        final sub = subs.firstWhere(
+          (s) => s['id'] == selectedSubId,
+          orElse: () => {},
+        );
+        if (sub.isNotEmpty) {
+          info = _directInfo(
+            selectedSubId,
+            (sub['scoring_direction'] ?? 'higher_is_better') as String,
+          );
+        }
+      }
+    }
+
+    final rank = info?['rank'] as int?;
+    final score = info?['score'] as double?;
+    final total = info?['total'] as int?;
+    final isAggregate = (info?['isAggregate'] as bool?) ?? false;
+    final rc = _rankColor(rank);
+
+    return AppCard(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      border: rank != null && rank <= 3
+          ? Border.all(color: rc.withValues(alpha: 0.35))
+          : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Activity name + rank badge
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (hasSubs) ...[
+                const Padding(
+                  padding: EdgeInsets.only(top: 2),
+                  child: Icon(Icons.folder_outlined,
+                      size: 14, color: kForegroundMuted),
+                ),
+                const SizedBox(width: 6),
+              ],
+              Expanded(
+                child: Text(
+                  act['name'].toString(),
+                  style: AppTypography.bodyLg
+                      .copyWith(fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(width: 8),
+              if (rank != null)
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: rc.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: rc.withValues(alpha: 0.5)),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '#$rank',
+                      style: AppTypography.label
+                          .copyWith(color: rc, fontSize: 12),
+                    ),
+                  ),
+                )
+              else
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: kSurfaceElevated,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                        color: kBorder.withValues(alpha: 0.4)),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '–',
+                      style: AppTypography.label.copyWith(
+                          color: kForegroundDisabled, fontSize: 14),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+
+          // Sub-activity dropdown
+          if (hasSubs) ...[
+            const SizedBox(height: 10),
+            _buildSubDropdown(parentId, subs),
+          ],
+
+          const SizedBox(height: 12),
+
+          // Score + rank pill
+          if (score != null)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      score.toStringAsFixed(2),
+                      style: AppTypography.h2.copyWith(color: kAccent),
+                    ),
+                    Text(
+                      isAggregate ? 'Avg score' : 'Score',
+                      style: AppTypography.caption.copyWith(
+                          color: kForegroundMuted, fontSize: 10),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                if (rank != null && total != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: rc.withValues(alpha: 0.1),
+                      borderRadius:
+                          BorderRadius.circular(kRadiusSmall),
+                      border: Border.all(
+                          color: rc.withValues(alpha: 0.35)),
+                    ),
+                    child: Text(
+                      'Rank #$rank of $total',
+                      style: AppTypography.label.copyWith(color: rc),
+                    ),
+                  ),
+              ],
+            )
+          else
+            Text(
+              'No score recorded',
+              style: AppTypography.caption
+                  .copyWith(color: kForegroundDisabled),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubDropdown(
+      String parentId, List<Map<String, dynamic>> subs) {
+    final selectedSubId = _selectedSubIds[parentId];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+      decoration: BoxDecoration(
+        color: kSurfaceElevated.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(kRadiusSmall),
+        border: Border.all(color: kBorder.withValues(alpha: 0.5)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String?>(
+          value: selectedSubId,
+          isExpanded: true,
+          dropdownColor: kSurfaceElevated,
+          icon: const Icon(Icons.keyboard_arrow_down_rounded,
+              size: 16, color: kForegroundMuted),
+          style: AppTypography.body
+              .copyWith(fontSize: 12, color: kForeground),
+          items: [
+            DropdownMenuItem<String?>(
+              value: null,
+              child: Text(
+                'All sub-questions',
+                style: AppTypography.body.copyWith(
+                    fontSize: 12, color: kForegroundMuted),
+              ),
+            ),
+            ...subs.map((sub) {
+              final subId = sub['id'] as String;
+              final hasScore =
+                  widget.activityResultsMap.containsKey(subId);
+              return DropdownMenuItem<String?>(
+                value: subId,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        sub['name'].toString(),
+                        style: AppTypography.body.copyWith(
+                          fontSize: 12,
+                          color: hasScore
+                              ? kForeground
+                              : kForegroundDisabled,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (!hasScore) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        'No scores',
+                        style: AppTypography.caption.copyWith(
+                            fontSize: 9, color: kForegroundDisabled),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }),
+          ],
+          onChanged: (value) =>
+              setState(() => _selectedSubIds[parentId] = value),
+        ),
+      ),
+    );
+  }
 }

@@ -148,6 +148,11 @@ class _SessionsTabState extends State<_SessionsTab> {
     }
   }
 
+  Future<void> _refreshData() async {
+    AppCache.instance.invalidate('sessions');
+    await _fetchData();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -232,7 +237,7 @@ class _SessionsTabState extends State<_SessionsTab> {
                     child: _isLoading
                         ? const AppLoader()
                         : RefreshIndicator(
-                            onRefresh: _fetchData,
+                            onRefresh: _refreshData,
                             color: kAccent,
                             backgroundColor: kSurfaceElevated,
                             child: _sessions.isEmpty

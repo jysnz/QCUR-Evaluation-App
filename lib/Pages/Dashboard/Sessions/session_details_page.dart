@@ -20,6 +20,7 @@ class SessionDetailsPage extends StatefulWidget {
 
 class _SessionDetailsPageState extends State<SessionDetailsPage> {
   int _currentIndex = 0;
+  final _rankingsVisibilityTrigger = ValueNotifier<int>(0);
 
   late final List<Widget> _tabs;
 
@@ -36,8 +37,15 @@ class _SessionDetailsPageState extends State<SessionDetailsPage> {
       ),
       RankingsTab(
         sessionId: widget.sessionId,
+        visibilityTrigger: _rankingsVisibilityTrigger,
       ),
     ];
+  }
+
+  @override
+  void dispose() {
+    _rankingsVisibilityTrigger.dispose();
+    super.dispose();
   }
 
   @override
@@ -62,7 +70,12 @@ class _SessionDetailsPageState extends State<SessionDetailsPage> {
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
-          onTap: (index) => setState(() => _currentIndex = index),
+          onTap: (index) {
+            if (index == 2 && _currentIndex != 2) {
+              _rankingsVisibilityTrigger.value++;
+            }
+            setState(() => _currentIndex = index);
+          },
           backgroundColor: kSurface,
           selectedItemColor: kAccent,
           unselectedItemColor: kForegroundDisabled,

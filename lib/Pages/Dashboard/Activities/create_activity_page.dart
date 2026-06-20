@@ -30,6 +30,7 @@ class CreateActivityPage extends StatefulWidget {
 class _CreateActivityPageState extends State<CreateActivityPage> {
   final _nameController = TextEditingController();
   String _scoringDirection = 'higher_is_better';
+  // '__all__' sentinel = activity applies to all roles (target_role_id stays null in DB)
   String? _targetRoleId;
   bool _isLoading = false;
   bool _isFetchingRoles = true;
@@ -84,7 +85,7 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
     final isSubActivity = widget.parentId != null;
     if (!isSubActivity && _targetRoleId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please assign a position to this activity')),
+        const SnackBar(content: Text('Please assign a position or select All Positions')),
       );
       return;
     }
@@ -119,7 +120,8 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
         'order_index': nextIndex,
       };
 
-      if (_targetRoleId != null) {
+      final isAllRoles = _targetRoleId == '__all__';
+      if (!isAllRoles && _targetRoleId != null) {
         insertData['target_role_id'] = _targetRoleId;
         final role = _roles.cast<Map<String, dynamic>?>().firstWhere(
           (r) => r?['id'].toString() == _targetRoleId,
@@ -141,7 +143,7 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
             'scoring_direction': e.value.scoringDirection,
             'order_index': e.key,
           };
-          if (_targetRoleId != null) {
+          if (!isAllRoles && _targetRoleId != null) {
             sub['target_role_id'] = _targetRoleId;
             sub['target_role'] = insertData['target_role'];
           }
@@ -476,10 +478,28 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
                     dropdownColor: kSurfaceElevated,
                     style: AppTypography.bodyLg.copyWith(fontWeight: FontWeight.bold),
                     icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kAccent),
-                    items: _roles.map((role) => DropdownMenuItem(
-                      value: role['id'].toString(),
-                      child: Text(role['name'].toString()),
-                    )).toList(),
+                    items: [
+                      DropdownMenuItem<String>(
+                        value: '__all__',
+                        child: Row(
+                          children: [
+                            const Icon(Icons.groups_rounded, size: 16, color: kAccent),
+                            const SizedBox(width: 8),
+                            Text(
+                              'All Positions',
+                              style: AppTypography.bodyLg.copyWith(
+                                color: kAccent,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      ..._roles.map((role) => DropdownMenuItem<String>(
+                            value: role['id'].toString(),
+                            child: Text(role['name'].toString()),
+                          )),
+                    ],
                     onChanged: (v) => setState(() => _targetRoleId = v),
                   ),
           ),

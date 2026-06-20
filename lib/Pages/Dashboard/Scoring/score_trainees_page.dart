@@ -44,6 +44,7 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
 
   List<Map<String, dynamic>> _subActivities = [];
   bool _subExpanded = true;
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -58,6 +59,17 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
       for (final c in sub.values) { c.dispose(); }
     }
     super.dispose();
+  }
+
+  Future<void> _refreshData() async {
+    final cache = AppCache.instance;
+    cache.invalidate('subs:${widget.activityId}');
+    cache.invalidate('results:${widget.activityId}');
+    final stKey = widget.roleId != null
+        ? 'st:${widget.sessionId}:${widget.roleId}'
+        : 'st:${widget.sessionId}';
+    cache.invalidate(stKey);
+    await _fetchData();
   }
 
   Future<void> _fetchData() async {
@@ -679,17 +691,23 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
           _isLoading
               ? const AppLoader()
               : SafeArea(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(kPadding),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (_subActivities.isNotEmpty) ...[
-                          _buildSubActivitiesSection(),
-                          const SizedBox(height: 16),
+                  child: RefreshIndicator(
+                    onRefresh: _refreshData,
+                    color: kAccent,
+                    backgroundColor: kSurfaceElevated,
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(kPadding),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (_subActivities.isNotEmpty) ...[
+                            _buildSubActivitiesSection(),
+                            const SizedBox(height: 16),
+                          ],
+                          _buildScoringSection(),
                         ],
-                        _buildScoringSection(),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -788,6 +806,15 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
   Widget _buildScoringSection() {
     if (_trainees.isEmpty) return _buildEmptyState();
 
+    final filtered = _searchQuery.isEmpty
+        ? _trainees
+        : _trainees
+            .where((t) => t['full_name']
+                .toString()
+                .toLowerCase()
+                .contains(_searchQuery.toLowerCase()))
+            .toList();
+
     final scoredCount = _trainees.where((t) => _isTraineeScored(t['id'] as String)).length;
 
     return Column(
@@ -829,8 +856,34 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
             ),
           ),
         ],
+        const SizedBox(height: 10),
+        AppCard(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: TextField(
+            onChanged: (v) => setState(() => _searchQuery = v),
+            style: AppTypography.body.copyWith(fontSize: 13),
+            decoration: InputDecoration(
+              hintText: 'Search trainees...',
+              hintStyle: AppTypography.label.copyWith(color: kForegroundDisabled),
+              icon: const Icon(Icons.search_rounded, color: kAccent, size: 18),
+              border: InputBorder.none,
+              isDense: true,
+            ),
+          ),
+        ),
         const SizedBox(height: 8),
-        ..._trainees.map(_buildTraineeScoringCard),
+        if (filtered.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: Center(
+              child: Text(
+                'No trainees match "$_searchQuery"',
+                style: AppTypography.caption.copyWith(color: kForegroundDisabled),
+              ),
+            ),
+          )
+        else
+          ...filtered.map(_buildTraineeScoringCard),
       ],
     );
   }

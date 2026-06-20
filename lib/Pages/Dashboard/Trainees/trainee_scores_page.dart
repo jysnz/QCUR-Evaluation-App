@@ -30,6 +30,11 @@ class _TraineeScoresPageState extends State<TraineeScoresPage> {
     _fetchScores();
   }
 
+  Future<void> _refreshScores() async {
+    AppCache.instance.invalidate('trainee_results:${widget.traineeId}');
+    await _fetchScores();
+  }
+
   Future<void> _fetchScores() async {
     setState(() => _isLoading = true);
     try {
@@ -326,7 +331,7 @@ class _TraineeScoresPageState extends State<TraineeScoresPage> {
                   ? _buildEmptyState()
                   : SafeArea(
                       child: RefreshIndicator(
-                        onRefresh: _fetchScores,
+                        onRefresh: _refreshScores,
                         color: kAccent,
                         backgroundColor: kSurfaceElevated,
                         child: ListView.builder(

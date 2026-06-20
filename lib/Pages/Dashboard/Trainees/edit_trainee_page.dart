@@ -19,7 +19,6 @@ class EditTraineePage extends StatefulWidget {
 
 class _EditTraineePageState extends State<EditTraineePage> {
   late final TextEditingController _nameController;
-  late final TextEditingController _emailController;
   final List<Map<String, dynamic>> _selectedRoles = [];
   List<Map<String, dynamic>> _availableRoles = [];
   bool _isLoading = true;
@@ -30,14 +29,12 @@ class _EditTraineePageState extends State<EditTraineePage> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.trainee['full_name']?.toString() ?? '');
-    _emailController = TextEditingController(text: widget.trainee['email']?.toString() ?? '');
     _loadData();
   }
 
   @override
   void dispose() {
     _nameController.dispose();
-    _emailController.dispose();
     super.dispose();
   }
 
@@ -93,7 +90,6 @@ class _EditTraineePageState extends State<EditTraineePage> {
 
       await supabase.from('trainees').update({
         'full_name': _nameController.text.trim(),
-        'email': _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
         'role': roleNames,
       }).eq('id', traineeId);
 
@@ -202,14 +198,6 @@ class _EditTraineePageState extends State<EditTraineePage> {
                                     hint: 'Enter full name',
                                     controller: _nameController,
                                     icon: Icons.person_outline_rounded,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  AppTextField(
-                                    label: 'Email (Optional)',
-                                    hint: 'Enter email address',
-                                    controller: _emailController,
-                                    icon: Icons.alternate_email_rounded,
-                                    keyboardType: TextInputType.emailAddress,
                                   ),
                                 ],
                               ),

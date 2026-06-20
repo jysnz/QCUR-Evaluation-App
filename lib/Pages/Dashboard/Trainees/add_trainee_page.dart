@@ -17,7 +17,6 @@ class AddTraineePage extends StatefulWidget {
 
 class _AddTraineePageState extends State<AddTraineePage> {
   final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
   final List<Map<String, dynamic>> _selectedRoles = [];
   bool _isLoading = true;
   bool _isSaving = false;
@@ -35,7 +34,6 @@ class _AddTraineePageState extends State<AddTraineePage> {
   @override
   void dispose() {
     _nameController.dispose();
-    _emailController.dispose();
     super.dispose();
   }
 
@@ -77,7 +75,6 @@ class _AddTraineePageState extends State<AddTraineePage> {
 
       final traineeData = await supabase.from('trainees').insert({
         'full_name': _nameController.text.trim(),
-        'email': _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
         'role': roleNames,
         'creator_id': supabase.auth.currentUser!.id,
       }).select().single();
@@ -103,7 +100,6 @@ class _AddTraineePageState extends State<AddTraineePage> {
       if (mounted) {
         if (_createMore) {
           _nameController.clear();
-          _emailController.clear();
           setState(() {
             _selectedRoles.clear();
             _isSaving = false;
@@ -218,14 +214,6 @@ class _AddTraineePageState extends State<AddTraineePage> {
                                     hint: 'Enter full name',
                                     controller: _nameController,
                                     icon: Icons.person_outline_rounded,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  AppTextField(
-                                    label: 'Email (Optional)',
-                                    hint: 'Enter email address',
-                                    controller: _emailController,
-                                    icon: Icons.alternate_email_rounded,
-                                    keyboardType: TextInputType.emailAddress,
                                   ),
                                 ],
                               ),

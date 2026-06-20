@@ -47,6 +47,11 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
     }
   }
 
+  Future<void> _refreshData() async {
+    AppCache.instance.invalidate('st_full:${widget.sessionId}');
+    await _fetchData();
+  }
+
   Future<void> _fetchData() async {
     setState(() => _isLoading = true);
     try {
@@ -140,7 +145,7 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator(color: kAccent))
                       : RefreshIndicator(
-                          onRefresh: _fetchData,
+                          onRefresh: _refreshData,
                           color: kAccent,
                           backgroundColor: kSurfaceElevated,
                           child: _allTrainees.isEmpty
@@ -243,9 +248,29 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
           padding: const EdgeInsets.only(bottom: 6.0),
           child: AppCard(
             padding: EdgeInsets.zero,
-            child: ListTile(
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(kRadius),
+              child: ListTile(
               dense: true,
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+              onTap: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => EditTraineePage(
+                      trainee: trainee,
+                      sessionId: widget.sessionId,
+                    ),
+                  ),
+                );
+                if (result == true) {
+                  AppCache.instance.invalidate('trainees');
+                  AppCache.instance.invalidate('st_full:${widget.sessionId}');
+                  AppCache.instance.invalidateWhere((k) => k.startsWith('st:'));
+                  _fetchData();
+                }
+              },
               leading: Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
@@ -365,6 +390,7 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
                   ),
                 ],
               ),
+            ),
             ),
           ),
         );
