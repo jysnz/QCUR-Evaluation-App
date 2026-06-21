@@ -129,7 +129,7 @@ class _AuthRouterState extends State<AuthRouter> {
   @override
   Widget build(BuildContext context) {
     if (_session == null) {
-      return const LoginPage();
+      return LoginPage(onRegistrationSuccess: _checkProfile);
     }
 
     if (_checkingProfile) {

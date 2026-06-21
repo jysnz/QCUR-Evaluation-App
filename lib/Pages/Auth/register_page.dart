@@ -141,9 +141,11 @@ class _RegisterPageState extends State<RegisterPage> {
                 label: 'Go to Dashboard',
                 onTap: () {
                   Navigator.of(dialogContext).pop();
-                  // Pop everything back to root — AuthRouter's onAuthStateChange
-                  // listener already detected the new session and will render
-                  // DashboardPage as the home widget.
+                  if (widget.isGoogleSignUp) {
+                    widget.onProfileComplete?.call();
+                  } else {
+                    widget.onRegistrationSuccess?.call();
+                  }
                   Navigator.of(context).popUntil((route) => route.isFirst);
                 },
               ),
@@ -360,12 +362,6 @@ class _RegisterPageState extends State<RegisterPage> {
       if (mounted) {
         setState(() => _isRegistering = false);
         await _showSuccessDialog();
-        if (!mounted) return;
-        if (widget.isGoogleSignUp) {
-          widget.onProfileComplete?.call();
-        } else {
-          widget.onRegistrationSuccess?.call();
-        }
       }
     } on AuthException catch (e, stackTrace) {
       await Sentry.captureException(e, stackTrace: stackTrace);

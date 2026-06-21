@@ -9,8 +9,9 @@ import 'package:qcur_evaluation/Widgets/design_system.dart';
 
 class LoginPage extends StatefulWidget {
   final VoidCallback? onRegister;
+  final VoidCallback? onRegistrationSuccess;
 
-  const LoginPage({super.key, this.onRegister});
+  const LoginPage({super.key, this.onRegister, this.onRegistrationSuccess});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -116,7 +117,11 @@ class _LoginPageState extends State<LoginPage> {
       widget.onRegister!();
     } else {
       Navigator.of(context).push(
-        MaterialPageRoute(builder: (context) => const RegisterPage()),
+        MaterialPageRoute(
+          builder: (context) => RegisterPage(
+            onRegistrationSuccess: widget.onRegistrationSuccess,
+          ),
+        ),
       );
     }
   }
