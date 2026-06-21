@@ -216,12 +216,13 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        toolbarHeight: 44,
         title: Text(
           isSubActivity ? 'Add Sub-activity' : 'New Activity',
-          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.close_rounded, color: kForegroundMuted),
+          icon: const Icon(Icons.close_rounded, color: kForegroundMuted, size: 20),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
@@ -248,56 +249,56 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
                                 hint: 'Activity name...',
                                 controller: _nameController,
                               ),
-                              const Divider(height: 1, color: kBorder, indent: 44),
+                              const Divider(height: 1, color: kBorder, indent: 40),
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                 child: Row(
                                   children: [
-                                    const Icon(Icons.trending_up_rounded, size: 17, color: kAccent),
-                                    const SizedBox(width: 12),
-                                    Text('Scoring', style: AppTypography.caption.copyWith(color: kForegroundMuted, fontSize: 12)),
+                                    const Icon(Icons.trending_up_rounded, size: 15, color: kAccent),
+                                    const SizedBox(width: 10),
+                                    Text('Scoring', style: AppTypography.caption.copyWith(color: kForegroundMuted, fontSize: 11)),
                                     const Spacer(),
                                     _mainScoringChip(label: 'Higher ▲', value: 'higher_is_better'),
-                                    const SizedBox(width: 6),
+                                    const SizedBox(width: 5),
                                     _mainScoringChip(label: 'Lower ▼', value: 'lower_is_better'),
                                   ],
                                 ),
                               ),
                               if (!isSubActivity) ...[
-                                const Divider(height: 1, color: kBorder, indent: 44),
+                                const Divider(height: 1, color: kBorder, indent: 40),
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                   child: Row(
                                     children: [
-                                      const Icon(Icons.psychology_outlined, size: 17, color: kAccent),
-                                      const SizedBox(width: 12),
+                                      const Icon(Icons.psychology_outlined, size: 15, color: kAccent),
+                                      const SizedBox(width: 10),
                                       Expanded(
                                         child: DropdownButtonHideUnderline(
                                           child: _isFetchingRoles
                                               ? const Padding(
-                                                  padding: EdgeInsets.symmetric(vertical: 10),
-                                                  child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: kAccent)),
+                                                  padding: EdgeInsets.symmetric(vertical: 8),
+                                                  child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: kAccent)),
                                                 )
                                               : DropdownButton<String>(
                                                   value: _targetRoleId,
                                                   isExpanded: true,
-                                                  hint: Text('Select a position', style: AppTypography.label.copyWith(color: kForegroundDisabled, fontSize: 13)),
+                                                  hint: Text('Select a position', style: AppTypography.label.copyWith(color: kForegroundDisabled, fontSize: 12)),
                                                   dropdownColor: kSurfaceElevated,
-                                                  style: AppTypography.body.copyWith(fontSize: 13, color: kForeground),
-                                                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kAccent, size: 16),
+                                                  style: AppTypography.body.copyWith(fontSize: 12, color: kForeground),
+                                                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kAccent, size: 15),
                                                   isDense: true,
                                                   items: [
                                                     DropdownMenuItem<String>(
                                                       value: '__all__',
                                                       child: Row(children: [
-                                                        const Icon(Icons.groups_rounded, size: 14, color: kAccent),
-                                                        const SizedBox(width: 8),
-                                                        Text('All Positions', style: AppTypography.body.copyWith(color: kAccent, fontSize: 13)),
+                                                        const Icon(Icons.groups_rounded, size: 13, color: kAccent),
+                                                        const SizedBox(width: 6),
+                                                        Text('All Positions', style: AppTypography.body.copyWith(color: kAccent, fontSize: 12)),
                                                       ]),
                                                     ),
                                                     ..._roles.map((role) => DropdownMenuItem<String>(
                                                       value: role['id'].toString(),
-                                                      child: Text(role['name'].toString(), style: AppTypography.body.copyWith(fontSize: 13)),
+                                                      child: Text(role['name'].toString(), style: AppTypography.body.copyWith(fontSize: 12)),
                                                     )),
                                                   ],
                                                   onChanged: (v) => setState(() => _targetRoleId = v),
@@ -308,18 +309,18 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
                                   ),
                                 ),
                               ] else if (widget.inheritedRoleId != null) ...[
-                                const Divider(height: 1, color: kBorder, indent: 44),
+                                const Divider(height: 1, color: kBorder, indent: 40),
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                   child: Row(
                                     children: [
-                                      const Icon(Icons.lock_outline_rounded, size: 17, color: kAccent),
-                                      const SizedBox(width: 12),
+                                      const Icon(Icons.lock_outline_rounded, size: 15, color: kAccent),
+                                      const SizedBox(width: 10),
                                       Text(
                                         _getInheritedRoleName(),
-                                        style: AppTypography.body.copyWith(fontSize: 13, color: kAccent, fontWeight: FontWeight.w600),
+                                        style: AppTypography.body.copyWith(fontSize: 12, color: kAccent, fontWeight: FontWeight.w600),
                                       ),
-                                      const SizedBox(width: 8),
+                                      const SizedBox(width: 6),
                                       Text('(inherited)', style: AppTypography.caption.copyWith(fontSize: 10, color: kForegroundDisabled)),
                                     ],
                                   ),
@@ -377,28 +378,20 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
           ],
           const SizedBox(height: 10),
           GestureDetector(
-            onTap: () {
-              setState(() => _subDrafts.add(_SubActivityDraft()));
-            },
+            onTap: () => setState(() => _subDrafts.add(_SubActivityDraft())),
             child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 10),
+              padding: const EdgeInsets.symmetric(vertical: 7),
               decoration: BoxDecoration(
                 color: kAccent.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(kRadius),
-                border: Border.all(
-                  color: kAccent.withValues(alpha: 0.3),
-                  style: BorderStyle.solid,
-                ),
+                border: Border.all(color: kAccent.withValues(alpha: 0.3)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.add_rounded, size: 18, color: kAccent),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Add Sub-activity',
-                    style: AppTypography.body.copyWith(color: kAccent, fontWeight: FontWeight.w600),
-                  ),
+                  const Icon(Icons.add_rounded, size: 15, color: kAccent),
+                  const SizedBox(width: 6),
+                  Text('Add Sub-activity', style: AppTypography.body.copyWith(color: kAccent, fontWeight: FontWeight.w600, fontSize: 12)),
                 ],
               ),
             ),
@@ -411,9 +404,9 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
   Widget _buildSubActivityRow(int index) {
     final draft = _subDrafts[index];
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: kSurfaceElevated,
           borderRadius: BorderRadius.circular(kRadius),
@@ -424,8 +417,8 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
             Row(
               children: [
                 Container(
-                  width: 22,
-                  height: 22,
+                  width: 18,
+                  height: 18,
                   decoration: BoxDecoration(
                     color: kAccent.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
@@ -433,18 +426,18 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
                   child: Center(
                     child: Text(
                       '${index + 1}',
-                      style: AppTypography.caption.copyWith(color: kAccent, fontWeight: FontWeight.bold, fontSize: 11),
+                      style: AppTypography.caption.copyWith(color: kAccent, fontWeight: FontWeight.bold, fontSize: 10),
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Expanded(
                   child: TextField(
                     controller: draft.nameController,
-                    style: AppTypography.body.copyWith(fontSize: 14),
+                    style: AppTypography.body.copyWith(fontSize: 12),
                     decoration: InputDecoration(
                       hintText: 'Sub-activity name...',
-                      hintStyle: AppTypography.label.copyWith(color: kForegroundDisabled),
+                      hintStyle: AppTypography.label.copyWith(color: kForegroundDisabled, fontSize: 12),
                       border: InputBorder.none,
                       isDense: true,
                       contentPadding: EdgeInsets.zero,
@@ -457,16 +450,16 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
                     setState(() => _subDrafts.removeAt(index));
                   },
                   child: Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: Icon(Icons.close_rounded, size: 18, color: kForegroundDisabled.withValues(alpha: 0.6)),
+                    padding: const EdgeInsets.only(left: 6),
+                    child: Icon(Icons.close_rounded, size: 15, color: kForegroundDisabled.withValues(alpha: 0.6)),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
             Row(
               children: [
-                const SizedBox(width: 32),
+                const SizedBox(width: 26),
                 _buildScoringToggle(draft),
               ],
             ),
@@ -480,18 +473,10 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('Score: ', style: AppTypography.caption.copyWith(fontSize: 11)),
-        _scoringChip(
-          label: 'Higher ▲',
-          value: 'higher_is_better',
-          draft: draft,
-        ),
-        const SizedBox(width: 6),
-        _scoringChip(
-          label: 'Lower ▼',
-          value: 'lower_is_better',
-          draft: draft,
-        ),
+        Text('Score: ', style: AppTypography.caption.copyWith(fontSize: 10)),
+        _scoringChip(label: 'Higher ▲', value: 'higher_is_better', draft: draft),
+        const SizedBox(width: 5),
+        _scoringChip(label: 'Lower ▼', value: 'lower_is_better', draft: draft),
       ],
     );
   }
@@ -502,20 +487,18 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
       onTap: () => setState(() => draft.scoringDirection = value),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
           color: isSelected ? kAccent.withValues(alpha: 0.12) : Colors.transparent,
           borderRadius: BorderRadius.circular(kRadiusSmall),
-          border: Border.all(
-            color: isSelected ? kAccent : kBorder.withValues(alpha: 0.4),
-          ),
+          border: Border.all(color: isSelected ? kAccent : kBorder.withValues(alpha: 0.4)),
         ),
         child: Text(
           label,
           style: AppTypography.caption.copyWith(
             color: isSelected ? kAccent : kForegroundMuted,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-            fontSize: 11,
+            fontSize: 10,
           ),
         ),
       ),
@@ -533,21 +516,21 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
 
   Widget _field({required IconData icon, required String hint, required TextEditingController controller}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
         children: [
-          Icon(icon, size: 17, color: kAccent),
-          const SizedBox(width: 12),
+          Icon(icon, size: 15, color: kAccent),
+          const SizedBox(width: 10),
           Expanded(
             child: TextField(
               controller: controller,
               style: AppTypography.body.copyWith(fontSize: 13),
               decoration: InputDecoration(
                 hintText: hint,
-                hintStyle: AppTypography.label.copyWith(color: kForegroundDisabled, fontSize: 13),
+                hintStyle: AppTypography.label.copyWith(color: kForegroundDisabled, fontSize: 12),
                 border: InputBorder.none,
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 9),
+                contentPadding: EdgeInsets.zero,
               ),
             ),
           ),
@@ -562,7 +545,7 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
       onTap: () => setState(() => _scoringDirection = value),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color: isSelected ? kAccent.withValues(alpha: 0.12) : Colors.transparent,
           borderRadius: BorderRadius.circular(kRadiusSmall),
@@ -573,7 +556,7 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
           style: AppTypography.caption.copyWith(
             color: isSelected ? kAccent : kForegroundMuted,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-            fontSize: 11,
+            fontSize: 10,
           ),
         ),
       ),
@@ -584,17 +567,17 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
     return AppCard(
       color: kInfo.withValues(alpha: 0.05),
       border: Border.all(color: kInfo.withValues(alpha: 0.2)),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(10),
       child: Row(
         children: [
-          const Icon(Icons.lightbulb_outline_rounded, color: kInfo, size: 20),
-          const SizedBox(width: 12),
+          const Icon(Icons.lightbulb_outline_rounded, color: kInfo, size: 15),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               isSubActivity
                   ? 'Sub-activities inherit their role assignment from the parent activity.'
                   : 'When an activity has sub-activities, only the sub-activities are scored. The parent acts as a grouping header.',
-              style: const TextStyle(color: kForegroundMuted, fontSize: 12),
+              style: const TextStyle(color: kForegroundMuted, fontSize: 11),
             ),
           ),
         ],
