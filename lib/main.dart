@@ -102,18 +102,19 @@ class _AuthRouterState extends State<AuthRouter> {
           .eq('id', _session!.user.id)
           .maybeSingle();
 
+      final isComplete = profile != null && profile['profile_complete'] == true;
       if (mounted) {
-        if (profile != null) {
+        if (isComplete) {
           await Sentry.configureScope((scope) {
             scope.setUser(SentryUser(
               id: _session!.user.id,
               email: _session!.user.email,
-              name: profile['full_name']?.toString(),
+              name: profile!['full_name']?.toString(),
             ));
           });
         }
         setState(() {
-          _hasProfile = profile != null;
+          _hasProfile = isComplete;
           _checkingProfile = false;
         });
       }

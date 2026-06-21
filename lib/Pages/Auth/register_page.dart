@@ -322,6 +322,7 @@ class _RegisterPageState extends State<RegisterPage> {
             'email': _emailController.text.trim(),
             'full_name': _nameController.text.trim(),
             'avatar_url': avatarUrl,
+            'profile_complete': true,
           });
         }
       } else {
@@ -351,6 +352,7 @@ class _RegisterPageState extends State<RegisterPage> {
             'email': _emailController.text.trim(),
             'full_name': _nameController.text.trim(),
             'avatar_url': avatarUrl,
+            'profile_complete': true,
           });
         }
       }
