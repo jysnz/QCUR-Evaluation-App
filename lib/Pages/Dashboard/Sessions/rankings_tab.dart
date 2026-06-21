@@ -394,6 +394,7 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        toolbarHeight: 44,
         title: const Text('Leaderboard', style: AppTypography.h3),
       ),
       body: RefreshIndicator(
@@ -456,32 +457,31 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
 
   Widget _buildRoleDropdown() {
     return AppCard(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: _selectedRoleId,
           isExpanded: true,
           dropdownColor: kSurfaceElevated,
-          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kAccent),
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kAccent, size: 16),
           hint: Row(
             children: [
-              const Icon(Icons.psychology_outlined, size: 16, color: kForegroundDisabled),
-              const SizedBox(width: 8),
+              const Icon(Icons.psychology_outlined, size: 14, color: kForegroundDisabled),
+              const SizedBox(width: 6),
               Text('Select a role',
-                  style: AppTypography.body.copyWith(color: kForegroundDisabled)),
+                  style: AppTypography.body.copyWith(color: kForegroundDisabled, fontSize: 13)),
             ],
           ),
           selectedItemBuilder: (_) => [
-            // "All Roles" selected item
             Align(
               alignment: Alignment.centerLeft,
               child: Row(
                 children: [
-                  const Icon(Icons.groups_rounded, size: 16, color: kAccent),
-                  const SizedBox(width: 8),
+                  const Icon(Icons.groups_rounded, size: 14, color: kAccent),
+                  const SizedBox(width: 6),
                   Text('All Roles',
                       style: AppTypography.body
-                          .copyWith(color: kAccent, fontWeight: FontWeight.w600)),
+                          .copyWith(color: kAccent, fontWeight: FontWeight.w600, fontSize: 13)),
                 ],
               ),
             ),
@@ -489,12 +489,12 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
               alignment: Alignment.centerLeft,
               child: Row(
                 children: [
-                  const Icon(Icons.psychology_outlined, size: 16, color: kAccent),
-                  const SizedBox(width: 8),
+                  const Icon(Icons.psychology_outlined, size: 14, color: kAccent),
+                  const SizedBox(width: 6),
                   Text(
                     role['name'].toString(),
                     style: AppTypography.body
-                        .copyWith(color: kAccent, fontWeight: FontWeight.w600),
+                        .copyWith(color: kAccent, fontWeight: FontWeight.w600, fontSize: 13),
                   ),
                 ],
               ),
@@ -505,17 +505,18 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
               value: '__all__',
               child: Row(
                 children: [
-                  const Icon(Icons.groups_rounded, size: 16, color: kAccent),
-                  const SizedBox(width: 8),
+                  const Icon(Icons.groups_rounded, size: 14, color: kAccent),
+                  const SizedBox(width: 6),
                   Text('All Roles',
                       style: AppTypography.body
-                          .copyWith(color: kAccent, fontWeight: FontWeight.w600)),
+                          .copyWith(color: kAccent, fontWeight: FontWeight.w600, fontSize: 13)),
                 ],
               ),
             ),
             ..._roles.map((role) => DropdownMenuItem<String>(
                   value: role['id'].toString(),
-                  child: Text(role['name'].toString(), style: AppTypography.body),
+                  child: Text(role['name'].toString(),
+                      style: AppTypography.body.copyWith(fontSize: 13)),
                 )),
           ],
           onChanged: (value) {
@@ -540,13 +541,13 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
     final activities = _activitiesForRole;
     if (activities.isEmpty) {
       return AppCard(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(10),
         child: Row(
           children: [
-            const Icon(Icons.info_outline_rounded, size: 14, color: kForegroundDisabled),
+            const Icon(Icons.info_outline_rounded, size: 13, color: kForegroundDisabled),
             const SizedBox(width: 8),
             Text('No activities found for this role',
-                style: AppTypography.caption.copyWith(color: kForegroundMuted)),
+                style: AppTypography.caption.copyWith(color: kForegroundMuted, fontSize: 12)),
           ],
         ),
       );
@@ -610,8 +611,8 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
               : null,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
-            margin: const EdgeInsets.only(bottom: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            margin: const EdgeInsets.only(bottom: 5),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
             decoration: BoxDecoration(
               color: isChecked
                   ? kAccent.withValues(alpha: 0.1)
@@ -627,31 +628,31 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
               children: [
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
-                  width: 18,
-                  height: 18,
+                  width: 16,
+                  height: 16,
                   decoration: BoxDecoration(
                     color: isChecked ? kAccent : Colors.transparent,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(3),
                     border: Border.all(
                       color: isChecked ? kAccent : kBorder,
                       width: 1.5,
                     ),
                   ),
                   child: isChecked
-                      ? const Icon(Icons.check_rounded, size: 12, color: Colors.white)
+                      ? const Icon(Icons.check_rounded, size: 10, color: Colors.white)
                       : null,
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Row(
                     children: [
-                      const Icon(Icons.folder_outlined, size: 12, color: kForegroundMuted),
+                      const Icon(Icons.folder_outlined, size: 11, color: kForegroundMuted),
                       const SizedBox(width: 5),
                       Expanded(
                         child: Text(
                           act['name'].toString(),
                           style: AppTypography.body.copyWith(
-                            fontSize: 13,
+                            fontSize: 12,
                             color: !hasResults
                                 ? kForegroundDisabled
                                 : isChecked
@@ -667,7 +668,7 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
                 ),
                 if (!hasResults)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                     decoration: BoxDecoration(
                       color: kSurfaceElevated,
                       borderRadius: BorderRadius.circular(4),
@@ -691,24 +692,25 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
     final selectedSubId = _selectedSubIds[parentId];
 
     return Padding(
-      padding: const EdgeInsets.only(left: 28, bottom: 6),
+      padding: const EdgeInsets.only(left: 24, bottom: 4),
       child: AppCard(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
         color: kSurfaceElevated.withValues(alpha: 0.5),
         child: DropdownButtonHideUnderline(
           child: DropdownButton<String?>(
             value: selectedSubId,
             isExpanded: true,
+            isDense: true,
             dropdownColor: kSurfaceElevated,
             icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                size: 16, color: kForegroundMuted),
-            style: AppTypography.body.copyWith(fontSize: 12, color: kForeground),
+                size: 13, color: kForegroundMuted),
+            style: AppTypography.body.copyWith(fontSize: 11, color: kForeground),
             items: [
               DropdownMenuItem<String?>(
                 value: null,
                 child: Text('All sub-activities',
                     style: AppTypography.body
-                        .copyWith(fontSize: 12, color: kForegroundMuted)),
+                        .copyWith(fontSize: 11, color: kForegroundMuted)),
               ),
               ...subs.map((sub) {
                 final subId = sub['id'] as String;
@@ -721,7 +723,7 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
                         child: Text(
                           sub['name'].toString(),
                           style: AppTypography.body.copyWith(
-                            fontSize: 12,
+                            fontSize: 11,
                             color: hasScores ? kForeground : kForegroundDisabled,
                           ),
                           overflow: TextOverflow.ellipsis,
@@ -752,13 +754,13 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
     required String subtitle,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(top: 80),
+      padding: const EdgeInsets.only(top: 60),
       child: Column(
         children: [
-          Icon(icon, size: 48, color: kForegroundDisabled.withValues(alpha: 0.4)),
-          const SizedBox(height: 16),
+          Icon(icon, size: 40, color: kForegroundDisabled.withValues(alpha: 0.4)),
+          const SizedBox(height: 12),
           Text(title, style: AppTypography.h3.copyWith(color: kForegroundMuted)),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Text(
@@ -777,12 +779,12 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 8),
           child: Row(
             children: [
               Container(
-                width: 4,
-                height: 24,
+                width: 3,
+                height: 18,
                 decoration: BoxDecoration(
                     color: kAccent, borderRadius: BorderRadius.circular(2)),
               ),
@@ -792,12 +794,12 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(activity.activityName,
-                        style: AppTypography.h3.copyWith(fontSize: 15)),
+                        style: AppTypography.h3.copyWith(fontSize: 13)),
                     const SizedBox(height: 2),
                     Row(
                       children: [
                         const Icon(Icons.psychology_outlined,
-                            size: 11, color: kAccent),
+                            size: 10, color: kAccent),
                         const SizedBox(width: 4),
                         Text(_selectedRoleName ?? '',
                             style: AppTypography.caption
@@ -839,7 +841,7 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
                 ),
               ),
               Text('${activity.ranked.length} ranked',
-                  style: AppTypography.caption),
+                  style: AppTypography.caption.copyWith(fontSize: 11)),
             ],
           ),
         ),
@@ -847,7 +849,7 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
               (e) => _buildRankingCard(
                   e.key + 1, e.value, activity.isAggregate),
             ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 10),
       ],
     );
   }
@@ -866,8 +868,8 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
     }
 
     return AppCard(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       border:
           rank <= 3 ? Border.all(color: rankColor.withValues(alpha: 0.3)) : null,
       child: InkWell(
@@ -879,8 +881,8 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
         child: Row(
           children: [
             Container(
-              width: 32,
-              height: 32,
+              width: 26,
+              height: 26,
               decoration: BoxDecoration(
                 color: rank <= 3
                     ? rankColor.withValues(alpha: 0.1)
@@ -891,18 +893,18 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
               child: Center(
                 child: Text(rank.toString(),
                     style: AppTypography.h3.copyWith(
-                        color: rankColor, fontSize: 14)),
+                        color: rankColor, fontSize: 11)),
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 10),
             Expanded(
               child: Text(
                 trainee['name'].toString(),
-                style: AppTypography.bodyLg.copyWith(fontWeight: FontWeight.bold),
+                style: AppTypography.body.copyWith(fontWeight: FontWeight.w600, fontSize: 13),
               ),
             ),
             const Icon(Icons.chevron_right_rounded,
-                color: kForegroundMuted, size: 18),
+                color: kForegroundMuted, size: 16),
           ],
         ),
       ),
@@ -1114,12 +1116,12 @@ class _TraineeScoreSheetState extends State<_TraineeScoreSheet> {
               // Header
               Padding(
                 padding:
-                    const EdgeInsets.fromLTRB(kPadding, 4, kPadding, 12),
+                    const EdgeInsets.fromLTRB(kPadding, 4, kPadding, 8),
                 child: Row(
                   children: [
                     Container(
-                      width: 44,
-                      height: 44,
+                      width: 34,
+                      height: 34,
                       decoration: BoxDecoration(
                         color: kAccent.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
@@ -1127,30 +1129,32 @@ class _TraineeScoreSheetState extends State<_TraineeScoreSheet> {
                       child: Center(
                         child: Text(
                           widget.traineeName[0].toUpperCase(),
-                          style: AppTypography.h2.copyWith(color: kAccent),
+                          style: AppTypography.body.copyWith(color: kAccent, fontWeight: FontWeight.bold, fontSize: 16),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(widget.traineeName,
-                              style: AppTypography.h3),
+                              style: AppTypography.body.copyWith(fontWeight: FontWeight.bold, fontSize: 14)),
                           const SizedBox(height: 2),
                           Text(
                             'Scores & rankings per activity',
                             style: AppTypography.caption
-                                .copyWith(color: kForegroundMuted),
+                                .copyWith(color: kForegroundMuted, fontSize: 11),
                           ),
                         ],
                       ),
                     ),
                     IconButton(
                       icon: const Icon(Icons.close_rounded,
-                          color: kForegroundMuted, size: 20),
+                          color: kForegroundMuted, size: 18),
                       onPressed: () => Navigator.pop(context),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
                     ),
                   ],
                 ),
@@ -1218,8 +1222,8 @@ class _TraineeScoreSheetState extends State<_TraineeScoreSheet> {
     final rc = _rankColor(rank);
 
     return AppCard(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       border: rank != null && rank <= 3
           ? Border.all(color: rc.withValues(alpha: 0.35))
           : null,
@@ -1228,26 +1232,21 @@ class _TraineeScoreSheetState extends State<_TraineeScoreSheet> {
         children: [
           // Activity name + rank badge
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Padding(
-                padding: EdgeInsets.only(top: 2),
-                child: Icon(Icons.folder_outlined,
-                    size: 14, color: kForegroundMuted),
-              ),
+              const Icon(Icons.folder_outlined, size: 13, color: kForegroundMuted),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   act['name'].toString(),
-                  style: AppTypography.bodyLg
-                      .copyWith(fontWeight: FontWeight.w600),
+                  style: AppTypography.body.copyWith(fontWeight: FontWeight.w600, fontSize: 13),
                 ),
               ),
               const SizedBox(width: 8),
               if (rank != null)
                 Container(
-                  width: 40,
-                  height: 40,
+                  width: 28,
+                  height: 28,
                   decoration: BoxDecoration(
                     color: rc.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
@@ -1256,26 +1255,23 @@ class _TraineeScoreSheetState extends State<_TraineeScoreSheet> {
                   child: Center(
                     child: Text(
                       '#$rank',
-                      style: AppTypography.label
-                          .copyWith(color: rc, fontSize: 12),
+                      style: AppTypography.caption.copyWith(color: rc, fontSize: 10, fontWeight: FontWeight.bold),
                     ),
                   ),
                 )
               else
                 Container(
-                  width: 40,
-                  height: 40,
+                  width: 28,
+                  height: 28,
                   decoration: BoxDecoration(
                     color: kSurfaceElevated,
                     shape: BoxShape.circle,
-                    border: Border.all(
-                        color: kBorder.withValues(alpha: 0.4)),
+                    border: Border.all(color: kBorder.withValues(alpha: 0.4)),
                   ),
                   child: Center(
                     child: Text(
                       '–',
-                      style: AppTypography.label.copyWith(
-                          color: kForegroundDisabled, fontSize: 14),
+                      style: AppTypography.caption.copyWith(color: kForegroundDisabled, fontSize: 12),
                     ),
                   ),
                 ),
@@ -1284,11 +1280,11 @@ class _TraineeScoreSheetState extends State<_TraineeScoreSheet> {
 
           // Sub-activity dropdown
           if (hasSubs) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             _buildSubDropdown(parentId, subs),
           ],
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
 
           // Score + rank pill
           if (score != null)
@@ -1300,7 +1296,7 @@ class _TraineeScoreSheetState extends State<_TraineeScoreSheet> {
                   children: [
                     Text(
                       score.toStringAsFixed(2),
-                      style: AppTypography.h2.copyWith(color: kAccent),
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: kAccent),
                     ),
                     Text(
                       isAggregate ? 'Avg score' : 'Score',
@@ -1312,18 +1308,15 @@ class _TraineeScoreSheetState extends State<_TraineeScoreSheet> {
                 const Spacer(),
                 if (rank != null && total != null)
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: rc.withValues(alpha: 0.1),
-                      borderRadius:
-                          BorderRadius.circular(kRadiusSmall),
-                      border: Border.all(
-                          color: rc.withValues(alpha: 0.35)),
+                      borderRadius: BorderRadius.circular(kRadiusSmall),
+                      border: Border.all(color: rc.withValues(alpha: 0.35)),
                     ),
                     child: Text(
                       'Rank #$rank of $total',
-                      style: AppTypography.label.copyWith(color: rc),
+                      style: AppTypography.caption.copyWith(color: rc, fontSize: 11),
                     ),
                   ),
               ],
@@ -1331,8 +1324,7 @@ class _TraineeScoreSheetState extends State<_TraineeScoreSheet> {
           else
             Text(
               'No score recorded',
-              style: AppTypography.caption
-                  .copyWith(color: kForegroundDisabled),
+              style: AppTypography.caption.copyWith(color: kForegroundDisabled),
             ),
         ],
       ),
@@ -1354,18 +1346,18 @@ class _TraineeScoreSheetState extends State<_TraineeScoreSheet> {
         child: DropdownButton<String?>(
           value: selectedSubId,
           isExpanded: true,
+          isDense: true,
           dropdownColor: kSurfaceElevated,
           icon: const Icon(Icons.keyboard_arrow_down_rounded,
-              size: 16, color: kForegroundMuted),
-          style: AppTypography.body
-              .copyWith(fontSize: 12, color: kForeground),
+              size: 13, color: kForegroundMuted),
+          style: AppTypography.body.copyWith(fontSize: 11, color: kForeground),
           items: [
             DropdownMenuItem<String?>(
               value: null,
               child: Text(
                 'All sub-activities',
                 style: AppTypography.body.copyWith(
-                    fontSize: 12, color: kForegroundMuted),
+                    fontSize: 11, color: kForegroundMuted),
               ),
             ),
             ...subs.map((sub) {
@@ -1380,7 +1372,7 @@ class _TraineeScoreSheetState extends State<_TraineeScoreSheet> {
                       child: Text(
                         sub['name'].toString(),
                         style: AppTypography.body.copyWith(
-                          fontSize: 12,
+                          fontSize: 11,
                           color: hasScore
                               ? kForeground
                               : kForegroundDisabled,
