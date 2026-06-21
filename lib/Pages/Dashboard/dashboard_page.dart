@@ -139,6 +139,7 @@ class _SessionsTabState extends State<_SessionsTab> {
   }
 
   Future<void> _fetchData() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       final cache = AppCache.instance;
@@ -167,6 +168,7 @@ class _SessionsTabState extends State<_SessionsTab> {
               .order('date', ascending: false);
       if (cachedSessions == null) cache.set('sessions', sessionsData);
 
+      if (!mounted) return;
       setState(() {
         _sessions = List<Map<String, dynamic>>.from(sessionsData);
         _isLoading = false;
@@ -176,8 +178,8 @@ class _SessionsTabState extends State<_SessionsTab> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error fetching data: $e')),
         );
+        setState(() => _isLoading = false);
       }
-      setState(() => _isLoading = false);
     }
   }
 

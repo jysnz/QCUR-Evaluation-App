@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:qcur_evaluation/Services/app_cache.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Activities/create_activity_page.dart';
@@ -126,8 +127,8 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage>
       cache.invalidate(stKey);
       await _fetchSubActivities();
       await _fetchTraineesAndResults();
-    } catch (e) {
-      debugPrint('Silent refresh error: $e');
+    } catch (e, stackTrace) {
+      await Sentry.captureException(e, stackTrace: stackTrace);
     } finally {
       _isSilentRefreshing = false;
     }
@@ -171,8 +172,8 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage>
       await _fetchSubActivities();
       await _fetchTraineesAndResults();
       if (mounted) setState(() => _isLoading = false);
-    } catch (e) {
-      debugPrint('Error fetching data: $e');
+    } catch (e, stackTrace) {
+      await Sentry.captureException(e, stackTrace: stackTrace);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
         setState(() => _isLoading = false);
@@ -319,10 +320,12 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage>
     final score = double.tryParse(scoreText);
     if (score == null) return;
 
+    final scorerName = _currentUserName ?? '';
     final optimistic = {
       'activity_id': widget.activityId,
       'trainee_id': traineeId,
       'score': score,
+      'scored_by_name': scorerName,
       'updated_at': DateTime.now().toIso8601String(),
     };
 
@@ -331,7 +334,12 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage>
 
     try {
       await supabase.from('activity_results').upsert(
-        {'activity_id': widget.activityId, 'trainee_id': traineeId, 'score': score},
+        {
+          'activity_id': widget.activityId,
+          'trainee_id': traineeId,
+          'score': score,
+          'scored_by_name': scorerName,
+        },
         onConflict: 'activity_id, trainee_id',
       );
       AppCache.instance.invalidate('results:${widget.activityId}');
@@ -340,8 +348,8 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage>
           const SnackBar(content: Text('Saved'), duration: Duration(seconds: 1)),
         );
       }
-    } catch (e) {
-      // Revert on failure.
+    } catch (e, stackTrace) {
+      await Sentry.captureException(e, stackTrace: stackTrace);
       if (mounted) {
         setState(() => _resultsMap.remove(traineeId));
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
@@ -350,6 +358,7 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage>
   }
 
   Future<void> _saveAllSubScores(String traineeId) async {
+    final scorerName = _currentUserName ?? '';
     final upserts = <Map<String, dynamic>>[];
     for (final sub in _subActivities) {
       final subId = sub['id'] as String;
@@ -357,7 +366,12 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage>
       if (scoreText.isNotEmpty) {
         final score = double.tryParse(scoreText);
         if (score != null) {
-          upserts.add({'activity_id': subId, 'trainee_id': traineeId, 'score': score});
+          upserts.add({
+            'activity_id': subId,
+            'trainee_id': traineeId,
+            'score': score,
+            'scored_by_name': scorerName,
+          });
         }
       }
     }
@@ -377,6 +391,7 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage>
         for (final u in upserts) {
           _subResultsMap['${u['activity_id']}:$traineeId'] = {
             ...u,
+            'scored_by_name': scorerName,
             'updated_at': DateTime.now().toIso8601String(),
           };
         }
@@ -396,8 +411,8 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage>
           const SnackBar(content: Text('Saved'), duration: Duration(seconds: 1)),
         );
       }
-    } catch (e) {
-      // Revert on failure.
+    } catch (e, stackTrace) {
+      await Sentry.captureException(e, stackTrace: stackTrace);
       if (mounted) {
         setState(() {
           for (final u in upserts) {
@@ -430,7 +445,8 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage>
           const SnackBar(content: Text('Score removed'), duration: Duration(seconds: 1)),
         );
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      await Sentry.captureException(e, stackTrace: stackTrace);
       if (mounted) {
         setState(() => _resultsMap[traineeId] = previous);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
@@ -470,7 +486,8 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage>
           const SnackBar(content: Text('Scores removed'), duration: Duration(seconds: 1)),
         );
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      await Sentry.captureException(e, stackTrace: stackTrace);
       if (mounted) {
         setState(() {
           for (final entry in previousEntries.entries) {
@@ -603,7 +620,10 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage>
                   children: [
                     Text('SCORE', style: AppTypography.label),
                     const SizedBox(height: 8),
-                    _buildScoreField(_scoreControllers[id]!),
+                    _buildScoreField(
+                      _scoreControllers[id]!,
+                      scoredByName: _resultsMap[id]?['scored_by_name']?.toString(),
+                    ),
                   ],
                 ),
               ),
@@ -826,7 +846,10 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage>
           ],
         ),
         const SizedBox(height: 10),
-        _buildScoreField(_subScoreControllers[traineeId]![subId]!),
+        _buildScoreField(
+          _subScoreControllers[traineeId]![subId]!,
+          scoredByName: result?['scored_by_name']?.toString(),
+        ),
       ],
     );
 
@@ -843,19 +866,23 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage>
     );
   }
 
-  Widget _buildScoreField(TextEditingController controller) => SizedBox(
-        height: 48,
-        child: TextField(
+  Widget _buildScoreField(TextEditingController controller, {String? scoredByName}) {
+    return Stack(
+      children: [
+        TextField(
           controller: controller,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          style: AppTypography.h2.copyWith(fontSize: 22, color: kForeground),
-          textAlign: TextAlign.start,
+          style: AppTypography.body.copyWith(fontSize: 14, fontWeight: FontWeight.w600),
           decoration: InputDecoration(
-            hintText: '0',
-            hintStyle: TextStyle(color: kForegroundDisabled.withValues(alpha: 0.5)),
+            hintText: '—',
+            hintStyle: TextStyle(color: kForegroundDisabled.withValues(alpha: 0.5), fontSize: 14),
             filled: true,
             fillColor: kSurfaceElevated.withValues(alpha: 0.5),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            contentPadding: EdgeInsets.only(
+              left: 12, right: 12,
+              top: 10,
+              bottom: scoredByName != null ? 20 : 10,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(kRadiusSmall),
               borderSide: BorderSide.none,
@@ -870,7 +897,25 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage>
             ),
           ),
         ),
-      );
+        if (scoredByName != null)
+          Positioned(
+            right: 10,
+            bottom: 7,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.person_rounded, size: 9, color: kForegroundDisabled),
+                const SizedBox(width: 3),
+                Text(
+                  'Scored by: $scoredByName',
+                  style: AppTypography.caption.copyWith(fontSize: 9, color: kForegroundDisabled),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
 
   Widget _buildSheetActions({
     required BuildContext sheetCtx,
@@ -885,59 +930,47 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage>
           children: [
             Row(
               children: [
-                Expanded(
-                  child: SizedBox(
-                    height: 48,
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(sheetCtx).pop(),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: kForegroundMuted,
-                        side: BorderSide(color: kBorder.withValues(alpha: 0.5)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusLarge)),
-                      ),
-                      child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w600)),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: SizedBox(
-                    height: 48,
-                    child: ElevatedButton.icon(
-                      onPressed: onSave,
-                      icon: const Icon(Icons.check_rounded, size: 18),
-                      label: Text(saveLabel, style: const TextStyle(fontWeight: FontWeight.w600)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: kAccent,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusLarge)),
-                        elevation: 0,
-                      ),
-                    ),
-                  ),
-                ),
+                Expanded(child: _sheetBtn(label: 'Cancel', onTap: () => Navigator.of(sheetCtx).pop(), color: kSurfaceElevated, textColor: kForegroundMuted)),
+                const SizedBox(width: 10),
+                Expanded(flex: 2, child: _sheetBtn(label: saveLabel, icon: Icons.check_rounded, onTap: onSave, color: kAccent, textColor: Colors.white)),
               ],
             ),
             if (onRemove != null) ...[
               const SizedBox(height: 6),
-              SizedBox(
-                width: double.infinity,
-                height: 38,
-                child: TextButton.icon(
-                  onPressed: onRemove,
-                  icon: const Icon(Icons.delete_outline_rounded, size: 15),
-                  label: const Text('Remove Score', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                  style: TextButton.styleFrom(
-                    foregroundColor: kError,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusLarge)),
-                  ),
-                ),
-              ),
+              _sheetBtn(label: 'Remove Score', icon: Icons.delete_outline_rounded, onTap: onRemove, color: kError.withValues(alpha: 0.1), textColor: kError),
             ],
           ],
         ),
       );
+
+  Widget _sheetBtn({
+    required String label,
+    required VoidCallback onTap,
+    required Color color,
+    required Color textColor,
+    IconData? icon,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 44,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(kRadiusLarge),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 15, color: textColor),
+              const SizedBox(width: 6),
+            ],
+            Text(label, style: TextStyle(color: textColor, fontWeight: FontWeight.w600, fontSize: 13)),
+          ],
+        ),
+      ),
+    );
+  }
 
   // ---------- Sub-activity navigation ----------
 

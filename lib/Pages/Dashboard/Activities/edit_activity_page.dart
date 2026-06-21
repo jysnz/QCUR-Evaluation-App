@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:qcur_evaluation/Services/app_cache.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 
@@ -83,7 +84,8 @@ class _EditActivityPageState extends State<EditActivityPage> {
         _roles = List<Map<String, dynamic>>.from(data);
         _isFetchingRoles = false;
       });
-    } catch (e) {
+    } catch (e, stackTrace) {
+      await Sentry.captureException(e, stackTrace: stackTrace);
       setState(() => _isFetchingRoles = false);
     }
   }
@@ -104,7 +106,8 @@ class _EditActivityPageState extends State<EditActivityPage> {
         )).toList();
         _isFetchingSubs = false;
       });
-    } catch (e) {
+    } catch (e, stackTrace) {
+      await Sentry.captureException(e, stackTrace: stackTrace);
       setState(() => _isFetchingSubs = false);
     }
   }
@@ -162,11 +165,16 @@ class _EditActivityPageState extends State<EditActivityPage> {
         'name': _nameController.text.trim(),
         'scoring_direction': _scoringDirection,
       };
-      if (widget.canChangeRole && _targetRoleId != null) {
-        updateData['target_role_id'] = _targetRoleId;
-        final role = _roles.cast<Map<String, dynamic>?>().firstWhere(
-          (r) => r?['id'].toString() == _targetRoleId, orElse: () => null);
-        if (role != null) updateData['target_role'] = role['name'];
+      if (widget.canChangeRole) {
+        if (_targetRoleId != null) {
+          updateData['target_role_id'] = _targetRoleId;
+          final role = _roles.cast<Map<String, dynamic>?>().firstWhere(
+            (r) => r?['id'].toString() == _targetRoleId, orElse: () => null);
+          if (role != null) updateData['target_role'] = role['name'];
+        } else {
+          updateData['target_role_id'] = null;
+          updateData['target_role'] = null;
+        }
       }
       await supabase.from('activities').update(updateData).eq('id', widget.activityId);
 
@@ -237,7 +245,8 @@ class _EditActivityPageState extends State<EditActivityPage> {
           ),
         );
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      await Sentry.captureException(e, stackTrace: stackTrace);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error saving: $e')),
@@ -326,7 +335,8 @@ class _EditActivityPageState extends State<EditActivityPage> {
           ),
         );
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      await Sentry.captureException(e, stackTrace: stackTrace);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Delete failed: $e')),
@@ -403,18 +413,26 @@ class _EditActivityPageState extends State<EditActivityPage> {
                                                   child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: kAccent)),
                                                 )
                                               : DropdownButton<String>(
-                                                  value: _targetRoleId,
+                                                  value: _targetRoleId ?? '__all__',
                                                   isExpanded: true,
-                                                  hint: Text('Select a position', style: AppTypography.label.copyWith(color: kForegroundDisabled, fontSize: 12)),
                                                   dropdownColor: kSurfaceElevated,
                                                   style: AppTypography.body.copyWith(fontSize: 12, color: kForeground),
                                                   icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kAccent, size: 15),
                                                   isDense: true,
-                                                  items: _roles.map((role) => DropdownMenuItem(
-                                                    value: role['id'].toString(),
-                                                    child: Text(role['name'].toString()),
-                                                  )).toList(),
-                                                  onChanged: (v) => setState(() => _targetRoleId = v),
+                                                  items: [
+                                                    DropdownMenuItem<String>(
+                                                      value: '__all__',
+                                                      child: Text(
+                                                        'All Positions',
+                                                        style: AppTypography.body.copyWith(fontSize: 12, color: kForegroundMuted),
+                                                      ),
+                                                    ),
+                                                    ..._roles.map((role) => DropdownMenuItem(
+                                                      value: role['id'].toString(),
+                                                      child: Text(role['name'].toString()),
+                                                    )),
+                                                  ],
+                                                  onChanged: (v) => setState(() => _targetRoleId = v == '__all__' ? null : v),
                                                 ),
                                         ),
                                       ),

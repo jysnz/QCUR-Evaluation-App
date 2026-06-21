@@ -103,11 +103,8 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
               activity['display_role'] = activity['roles']['name'];
             }
           } else {
-            // Manual assignment
-            activity['trainee_ids'] = assignmentsData
-                .where((a) => a['activity_id'] == activity['id'])
-                .map((a) => a['trainee_id'])
-                .toList();
+            // All Positions: include all session trainees
+            activity['trainee_ids'] = _sessionTrainees.map((t) => t['id']).toList();
           }
         }
         
@@ -289,6 +286,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
     final subActivities = _activities.where((a) => a['parent_id'] == activity['id']).toList();
     final subExpanded = _subExpandedIds.contains(activity['id']);
     final roleName = activity['display_role'] ?? activity['target_role'];
+    final isAllPositions = activity['target_role_id'] == null;
     final hasSubActivities = subActivities.isNotEmpty;
     final isParent = activity['parent_id'] == null;
 
@@ -303,7 +301,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
                 if (isSub) {
                   final parentId = activity['parent_id'] as String;
                   final parent = _activities.firstWhere((a) => a['id'] == parentId);
-                  final parentRoleName = parent['display_role'] ?? parent['target_role'];
+                  final parentRoleName = (parent['display_role'] ?? parent['target_role']) as String?;
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (context) => ScoreTraineesPage(
@@ -312,7 +310,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
                         activityName: parent['name'].toString(),
                         sessionName: widget.sessionName,
                         roleId: parent['target_role_id'] as String?,
-                        roleName: parentRoleName?.toString(),
+                        roleName: parentRoleName ?? 'All Positions',
                         highlightedSubId: activity['id'] as String,
                       ),
                     ),
@@ -326,7 +324,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
                         activityName: activity['name'],
                         sessionName: widget.sessionName,
                         roleId: activity['target_role_id'],
-                        roleName: roleName,
+                        roleName: roleName ?? 'All Positions',
                       ),
                     ),
                   ).then((_) => _fetchData());
@@ -403,17 +401,17 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
                     Row(
                       children: [
                         Icon(
-                          Icons.psychology_outlined,
+                          isAllPositions ? Icons.groups_rounded : Icons.psychology_outlined,
                           size: hasSubActivities ? 11 : 12,
-                          color: roleName != null ? kAccent : kForegroundDisabled,
+                          color: kAccent,
                         ),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
-                            roleName ?? 'No role assigned',
+                            roleName ?? 'All Positions',
                             style: AppTypography.caption.copyWith(
                               fontSize: hasSubActivities ? 10 : 11,
-                              color: roleName != null ? kAccent : kForegroundDisabled,
+                              color: kAccent,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),

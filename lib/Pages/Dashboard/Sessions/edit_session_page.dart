@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:qcur_evaluation/Services/app_cache.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 import 'package:intl/intl.dart';
@@ -76,7 +77,8 @@ class _EditSessionPageState extends State<EditSessionPage> {
       AppCache.instance.invalidate('sessions');
 
       if (mounted) Navigator.of(context).pop(true);
-    } catch (e) {
+    } catch (e, stackTrace) {
+      await Sentry.captureException(e, stackTrace: stackTrace);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving: $e')));
         setState(() => _isSaving = false);
@@ -98,168 +100,152 @@ class _EditSessionPageState extends State<EditSessionPage> {
       backgroundColor: kBackground,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        title: const Text('Edit Session', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+        elevation: 0,
+        toolbarHeight: 44,
+        title: const Text('Edit Session', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
         leading: IconButton(
-          icon: const Icon(Icons.close_rounded, color: kForegroundMuted),
+          icon: const Icon(Icons.close_rounded, color: kForegroundMuted, size: 20),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
       body: AppBackground(
         child: SafeArea(
-          child: Column(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(kPadding),
+          child: Padding(
+            padding: const EdgeInsets.all(kPadding),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AppCard(
+                  padding: EdgeInsets.zero,
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      AppCard(
-                        padding: const EdgeInsets.all(kPaddingLarge),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(7),
-                                  decoration: BoxDecoration(
-                                    color: kAccent.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(kRadiusSmall),
-                                  ),
-                                  child: const Icon(Icons.layers_rounded, size: 16, color: kAccent),
-                                ),
-                                const SizedBox(width: 12),
-                                const Expanded(
-                                  child: SectionHeader(
-                                    title: 'Details',
-                                    subtitle: 'Update session information',
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 24),
-                            AppTextField(
-                              label: 'Session Name',
-                              hint: 'e.g., Monthly Training...',
-                              controller: _nameController,
-                              icon: Icons.title_rounded,
-                            ),
-                            const SizedBox(height: 20),
-                            Text('Date', style: AppTypography.label),
-                            const SizedBox(height: 8),
-                            InkWell(
-                              onTap: _selectDate,
-                              borderRadius: BorderRadius.circular(kRadiusSmall),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                                decoration: BoxDecoration(
-                                  color: kSurfaceElevated,
-                                  borderRadius: BorderRadius.circular(kRadiusSmall),
-                                  border: Border.all(color: kBorder.withValues(alpha: 0.5)),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      DateFormat('MMMM dd, yyyy').format(_selectedDate),
-                                      style: AppTypography.bodyLg.copyWith(fontWeight: FontWeight.bold),
-                                    ),
-                                    const Icon(Icons.calendar_today_rounded, color: kAccent, size: 20),
-                                  ],
+                      _field(
+                        icon: Icons.title_rounded,
+                        hint: 'Session name...',
+                        controller: _nameController,
+                      ),
+                      const Divider(height: 1, color: kBorder, indent: 44),
+                      InkWell(
+                        onTap: _selectDate,
+                        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(kRadius)),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.calendar_today_rounded, size: 17, color: kAccent),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  DateFormat('MMMM dd, yyyy').format(_selectedDate),
+                                  style: AppTypography.body.copyWith(fontSize: 13, fontWeight: FontWeight.w500),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      AppCard(
-                        padding: const EdgeInsets.all(kPaddingLarge),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(7),
-                                  decoration: BoxDecoration(
-                                    color: kInfo.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(kRadiusSmall),
-                                  ),
-                                  child: const Icon(Icons.flag_outlined, size: 16, color: kInfo),
-                                ),
-                                const SizedBox(width: 12),
-                                const Expanded(
-                                  child: SectionHeader(
-                                    title: 'Status',
-                                    subtitle: 'Current session state',
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 20),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 10,
-                              children: _statuses.map((s) {
-                                final isSelected = _status == s;
-                                final color = _statusColor(s);
-                                return GestureDetector(
-                                  onTap: () => setState(() => _status = s),
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 180),
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-                                    decoration: BoxDecoration(
-                                      color: isSelected ? color.withValues(alpha: 0.12) : kSurfaceElevated,
-                                      borderRadius: BorderRadius.circular(kRadiusSmall),
-                                      border: Border.all(
-                                        color: isSelected ? color : kBorder,
-                                        width: isSelected ? 1.5 : 1,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          isSelected ? Icons.check_circle_rounded : Icons.radio_button_off_rounded,
-                                          size: 15,
-                                          color: isSelected ? color : kForegroundDisabled,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          s[0].toUpperCase() + s.substring(1),
-                                          style: AppTypography.body.copyWith(
-                                            color: isSelected ? kForeground : kForegroundMuted,
-                                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                                            fontSize: 13,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              }).toList(),
-                            ),
-                          ],
+                              const Icon(Icons.chevron_right_rounded, size: 16, color: kForegroundDisabled),
+                            ],
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(kPadding, 0, kPadding, kPadding),
-                child: AppButton(
+                const SizedBox(height: 12),
+                AppCard(
+                  padding: const EdgeInsets.all(kPadding),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.flag_outlined, size: 13, color: kInfo),
+                          const SizedBox(width: 6),
+                          Text(
+                            'STATUS',
+                            style: AppTypography.overline.copyWith(color: kInfo, fontSize: 10, letterSpacing: 1.1),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 8,
+                        children: _statuses.map((s) {
+                          final isSelected = _status == s;
+                          final color = _statusColor(s);
+                          return GestureDetector(
+                            onTap: () => setState(() => _status = s),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                              decoration: BoxDecoration(
+                                color: isSelected ? color.withValues(alpha: 0.12) : kSurfaceElevated,
+                                borderRadius: BorderRadius.circular(kRadiusSmall),
+                                border: Border.all(
+                                  color: isSelected ? color : kBorder,
+                                  width: isSelected ? 1.5 : 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    isSelected ? Icons.check_circle_rounded : Icons.circle_outlined,
+                                    size: 13,
+                                    color: isSelected ? color : kForegroundDisabled,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    s[0].toUpperCase() + s.substring(1),
+                                    style: AppTypography.body.copyWith(
+                                      color: isSelected ? kForeground : kForegroundMuted,
+                                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                AppButton(
                   label: 'Save Changes',
                   onTap: _isSaving ? null : _save,
                   isLoading: _isSaving,
                   icon: Icons.check_rounded,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _field({required IconData icon, required String hint, required TextEditingController controller}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 17, color: kAccent),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              style: AppTypography.body.copyWith(fontSize: 13),
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle: AppTypography.label.copyWith(color: kForegroundDisabled, fontSize: 13),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 13),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

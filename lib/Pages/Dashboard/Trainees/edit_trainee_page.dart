@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:qcur_evaluation/Services/app_cache.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 
@@ -64,8 +65,8 @@ class _EditTraineePageState extends State<EditTraineePage> {
         _selectedRoles.addAll(roles.where((r) => assignedIds.contains(r['id'].toString())));
         _isLoading = false;
       });
-    } catch (e) {
-      debugPrint('Error loading trainee data: $e');
+    } catch (e, stackTrace) {
+      await Sentry.captureException(e, stackTrace: stackTrace);
       setState(() => _isLoading = false);
     }
   }
@@ -111,7 +112,8 @@ class _EditTraineePageState extends State<EditTraineePage> {
         await _showSuccessDialog(_nameController.text.trim());
         if (mounted) Navigator.of(context).pop(true);
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      await Sentry.captureException(e, stackTrace: stackTrace);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving: $e')));
         setState(() => _isSaving = false);

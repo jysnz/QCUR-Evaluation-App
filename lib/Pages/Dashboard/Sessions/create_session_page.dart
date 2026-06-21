@@ -1,6 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Sessions/session_details_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:qcur_evaluation/Services/app_cache.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 import 'package:intl/intl.dart';
@@ -111,7 +112,8 @@ class _CreateSessionPageState extends State<CreateSessionPage> {
           ),
         );
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      await Sentry.captureException(e, stackTrace: stackTrace);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error creating session: $e')),

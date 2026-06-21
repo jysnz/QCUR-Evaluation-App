@@ -93,7 +93,7 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
     final namedSubs = _subDrafts.where((d) => d.nameController.text.trim().isNotEmpty).toList();
     if (_subDrafts.isNotEmpty && namedSubs.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a name for each sub-activity or remove empty ones')),
+        const SnackBar(content: Text('Please enter a name for each question or remove empty ones')),
       );
       return;
     }
@@ -115,7 +115,8 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
         'session_id': widget.sessionId,
         'parent_id': widget.parentId,
         'name': _nameController.text.trim(),
-        'is_graded': namedSubs.isEmpty,
+        // Sub-activities are always directly graded; parent activities are graded only if no subs
+        'is_graded': isSubActivity || namedSubs.isEmpty,
         'scoring_direction': _scoringDirection,
         'order_index': nextIndex,
       };
@@ -134,23 +135,43 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
       final parentId = parentData['id'] as String;
 
       if (namedSubs.isNotEmpty) {
-        final subInserts = namedSubs.asMap().entries.map((e) {
-          final Map<String, dynamic> sub = {
-            'session_id': widget.sessionId,
-            'parent_id': parentId,
-            'name': e.value.nameController.text.trim(),
-            'is_graded': true,
-            'scoring_direction': e.value.scoringDirection,
-            'order_index': e.key,
-          };
-          if (!isAllRoles && _targetRoleId != null) {
-            sub['target_role_id'] = _targetRoleId;
-            sub['target_role'] = insertData['target_role'];
-          }
-          return sub;
-        }).toList();
-
-        await supabase.from('activities').insert(subInserts);
+        if (isSubActivity) {
+          // Create as siblings under the same parent activity
+          final siblingInserts = namedSubs.asMap().entries.map((e) {
+            final Map<String, dynamic> sub = {
+              'session_id': widget.sessionId,
+              'parent_id': widget.parentId,
+              'name': e.value.nameController.text.trim(),
+              'is_graded': true,
+              'scoring_direction': e.value.scoringDirection,
+              'order_index': nextIndex + 1 + e.key,
+            };
+            if (!isAllRoles && _targetRoleId != null) {
+              sub['target_role_id'] = _targetRoleId;
+              sub['target_role'] = insertData['target_role'];
+            }
+            return sub;
+          }).toList();
+          await supabase.from('activities').insert(siblingInserts);
+        } else {
+          // Create as children of the newly created parent activity
+          final subInserts = namedSubs.asMap().entries.map((e) {
+            final Map<String, dynamic> sub = {
+              'session_id': widget.sessionId,
+              'parent_id': parentId,
+              'name': e.value.nameController.text.trim(),
+              'is_graded': true,
+              'scoring_direction': e.value.scoringDirection,
+              'order_index': e.key,
+            };
+            if (!isAllRoles && _targetRoleId != null) {
+              sub['target_role_id'] = _targetRoleId;
+              sub['target_role'] = insertData['target_role'];
+            }
+            return sub;
+          }).toList();
+          await supabase.from('activities').insert(subInserts);
+        }
       }
 
       AppCache.instance.invalidateWhere((k) => k.startsWith('acts:') && k.contains(widget.sessionId));
@@ -330,11 +351,15 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
                           ),
                         ),
 
-                        // Sub-activities section (only for parent activities)
-                        if (!isSubActivity) ...[
-                          const SizedBox(height: 16),
+                        // Sub-activities / additional questions section
+                        const SizedBox(height: 16),
+                        if (isSubActivity)
+                          _buildSubActivitiesSection(
+                            title: 'MORE QUESTIONS',
+                            addLabel: 'Add Question',
+                          )
+                        else
                           _buildSubActivitiesSection(),
-                        ],
 
                         const SizedBox(height: 16),
                         _buildProTip(isSubActivity),
@@ -357,7 +382,10 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
     );
   }
 
-  Widget _buildSubActivitiesSection() {
+  Widget _buildSubActivitiesSection({
+    String title = 'SUB-ACTIVITIES',
+    String addLabel = 'Add Sub-activity',
+  }) {
     return AppCard(
       padding: const EdgeInsets.all(kPadding),
       child: Column(
@@ -367,7 +395,7 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
             children: [
               const Icon(Icons.account_tree_outlined, size: 14, color: kInfo),
               const SizedBox(width: 6),
-              Text('SUB-ACTIVITIES', style: AppTypography.overline.copyWith(color: kInfo, fontSize: 10, letterSpacing: 1.1)),
+              Text(title, style: AppTypography.overline.copyWith(color: kInfo, fontSize: 10, letterSpacing: 1.1)),
               const Spacer(),
               Text('Optional', style: AppTypography.caption.copyWith(fontSize: 10)),
             ],
@@ -391,7 +419,7 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
                 children: [
                   const Icon(Icons.add_rounded, size: 15, color: kAccent),
                   const SizedBox(width: 6),
-                  Text('Add Sub-activity', style: AppTypography.body.copyWith(color: kAccent, fontWeight: FontWeight.w600, fontSize: 12)),
+                  Text(addLabel, style: AppTypography.body.copyWith(color: kAccent, fontWeight: FontWeight.w600, fontSize: 12)),
                 ],
               ),
             ),
@@ -575,7 +603,7 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
           Expanded(
             child: Text(
               isSubActivity
-                  ? 'Sub-activities inherit their role assignment from the parent activity.'
+                  ? 'Use "Add Question" to create multiple sub-activities at once. They inherit the role from their parent activity.'
                   : 'When an activity has sub-activities, only the sub-activities are scored. The parent acts as a grouping header.',
               style: const TextStyle(color: kForegroundMuted, fontSize: 11),
             ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 import 'package:qcur_evaluation/Pages/Auth/auth_widgets.dart';
 
@@ -36,10 +37,7 @@ class _RegisterPageState extends State<RegisterPage> {
   
   File? _imageFile;
   final ImagePicker _picker = ImagePicker();
-  
-  String _selectedPosition = 'Media';
-  final List<String> _positions = ['Media', 'Member', 'Team Player'];
-  
+
   bool _isRegistering = false;
 
   bool _hasMinLength = false;
@@ -323,7 +321,6 @@ class _RegisterPageState extends State<RegisterPage> {
             'id': targetUser.id,
             'email': _emailController.text.trim(),
             'full_name': _nameController.text.trim(),
-            'position': _selectedPosition,
             'avatar_url': avatarUrl,
           });
         }
@@ -333,7 +330,6 @@ class _RegisterPageState extends State<RegisterPage> {
           password: _passwordController.text.trim(),
           data: {
             'full_name': _nameController.text.trim(),
-            'position': _selectedPosition,
           }
         );
 
@@ -354,7 +350,6 @@ class _RegisterPageState extends State<RegisterPage> {
             'id': response.user!.id,
             'email': _emailController.text.trim(),
             'full_name': _nameController.text.trim(),
-            'position': _selectedPosition,
             'avatar_url': avatarUrl,
           });
         }
@@ -370,7 +365,8 @@ class _RegisterPageState extends State<RegisterPage> {
           widget.onRegistrationSuccess?.call();
         }
       }
-    } on AuthException catch (e) {
+    } on AuthException catch (e, stackTrace) {
+      await Sentry.captureException(e, stackTrace: stackTrace);
       if (mounted) {
         setState(() => _isRegistering = false);
         final msg = e.message.toLowerCase();
@@ -380,7 +376,8 @@ class _RegisterPageState extends State<RegisterPage> {
           _showErrorDialog(e.message);
         }
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      await Sentry.captureException(e, stackTrace: stackTrace);
       if (mounted) {
         setState(() => _isRegistering = false);
         final msg = e.toString().toLowerCase();
@@ -543,36 +540,6 @@ class _RegisterPageState extends State<RegisterPage> {
                             const SizedBox(height: 4),
                             if (_confirmPasswordController.text.isNotEmpty)
                               _PasswordRequirement(label: 'Passwords Match', isValid: _passwordsMatch),
-                            const SizedBox(height: 10),
-                            Text('Position',
-                              style: AppTypography.label.copyWith(fontSize: 10)),
-                            const SizedBox(height: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: kSurfaceElevated.withValues(alpha: 0.5),
-                                borderRadius: BorderRadius.circular(kRadius),
-                                border: Border.all(color: kBorder),
-                              ),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<String>(
-                                  value: _selectedPosition,
-                                  isExpanded: true,
-                                  dropdownColor: kSurface,
-                                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kAccent, size: 18),
-                                  style: AppTypography.body.copyWith(fontSize: 13),
-                                  items: _positions.map((String position) {
-                                    return DropdownMenuItem<String>(
-                                      value: position,
-                                      child: Text(position),
-                                    );
-                                  }).toList(),
-                                  onChanged: (String? newValue) {
-                                    if (newValue != null) setState(() => _selectedPosition = newValue);
-                                  },
-                                ),
-                              ),
-                            ),
                             const SizedBox(height: 12),
                             AuthButton(
                               label: widget.isGoogleSignUp ? 'Save Profile' : 'Create Account',

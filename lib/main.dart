@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:qcur_evaluation/Pages/Auth/login_page.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/dashboard_page.dart';
 import 'package:qcur_evaluation/Pages/Auth/register_page.dart';
@@ -8,7 +9,7 @@ import 'package:qcur_evaluation/Widgets/design_system.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   await dotenv.load(fileName: ".env");
 
   await Supabase.initialize(
@@ -16,7 +17,14 @@ Future<void> main() async {
     publishableKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
 
-  runApp(const MyApp());
+  await SentryFlutter.init(
+    (options) {
+      options.dsn = dotenv.env['SENTRY_DSN']!;
+      options.tracesSampleRate = 1.0;
+      options.environment = 'development';
+    },
+    appRunner: () => runApp(const MyApp()),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -73,6 +81,7 @@ class _AuthRouterState extends State<AuthRouter> {
         if (_session != null) {
           _checkProfile();
         } else {
+          Sentry.configureScope((scope) => scope.setUser(null));
           setState(() {
             _hasProfile = false;
             _checkingProfile = false;
@@ -84,7 +93,7 @@ class _AuthRouterState extends State<AuthRouter> {
 
   Future<void> _checkProfile() async {
     if (_session == null) return;
-    
+
     setState(() => _checkingProfile = true);
     try {
       final profile = await Supabase.instance.client
@@ -92,14 +101,24 @@ class _AuthRouterState extends State<AuthRouter> {
           .select()
           .eq('id', _session!.user.id)
           .maybeSingle();
-      
+
       if (mounted) {
+        if (profile != null) {
+          await Sentry.configureScope((scope) {
+            scope.setUser(SentryUser(
+              id: _session!.user.id,
+              email: _session!.user.email,
+              name: profile['full_name']?.toString(),
+            ));
+          });
+        }
         setState(() {
           _hasProfile = profile != null;
           _checkingProfile = false;
         });
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      await Sentry.captureException(e, stackTrace: stackTrace);
       if (mounted) {
         setState(() => _checkingProfile = false);
       }
