@@ -204,11 +204,45 @@ class _SessionsTabState extends State<_SessionsTab> {
     if (confirm != true) return;
     try {
       final sessionId = session['id'] as String;
+      final sessionName = session['name'] as String;
       await supabase.from('training_sessions').delete().eq('id', sessionId);
       AppCache.instance.invalidate('sessions');
       AppCache.instance.invalidateWhere((k) =>
           k.contains(sessionId) || k.startsWith('st:'));
       _fetchSessions();
+      if (mounted) {
+        await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: kSurface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(color: kError.withValues(alpha: 0.15), shape: BoxShape.circle),
+                  child: const Icon(Icons.delete_rounded, size: 32, color: kError),
+                ),
+                const SizedBox(height: 16),
+                const Text('Session Deleted', style: AppTypography.h3, textAlign: TextAlign.center),
+                const SizedBox(height: 6),
+                Text(
+                  '"$sessionName" has been permanently deleted.',
+                  style: AppTypography.caption.copyWith(color: kForegroundMuted),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                AppButton(
+                  label: 'Done',
+                  onTap: () => Navigator.of(ctx).pop(),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('Delete failed: $e')));
     }
@@ -287,20 +321,7 @@ class _SessionsTabState extends State<_SessionsTab> {
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Notifications coming soon'),
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            },
-            icon: const Icon(Icons.notifications_none_rounded, color: kForeground),
-          ),
-          const SizedBox(width: 8),
-        ],
+        actions: const [],
       ),
       body: Stack(
         children: [
@@ -338,14 +359,12 @@ class _SessionsTabState extends State<_SessionsTab> {
                     label: 'New Training Session',
                     icon: Icons.add_rounded,
                     onTap: () async {
-                      final result = await Navigator.of(context).push(
+                      await Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (context) => const CreateSessionPage(),
                         ),
                       );
-                      if (result == true) {
-                        _fetchSessions();
-                      }
+                      _fetchSessions();
                     },
                   ),
                   const SizedBox(height: 16),

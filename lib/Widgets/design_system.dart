@@ -211,6 +211,7 @@ class AppButton extends StatefulWidget {
   final IconData? icon;
   final bool isSecondary;
   final bool isFullWidth;
+  final bool dense;
 
   const AppButton({
     super.key,
@@ -222,6 +223,7 @@ class AppButton extends StatefulWidget {
     this.icon,
     this.isSecondary = false,
     this.isFullWidth = true,
+    this.dense = true,
   });
 
   @override
@@ -263,7 +265,9 @@ class _AppButtonState extends State<AppButton> {
               highlightColor: Colors.white.withValues(alpha: 0.05),
               child: Container(
                 width: widget.isFullWidth ? double.infinity : null,
-                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                padding: widget.dense
+                  ? const EdgeInsets.symmetric(vertical: 10, horizontal: 16)
+                  : const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(kRadiusLarge),
                   border: widget.isSecondary ? Border.all(color: kBorder) : null,
@@ -282,8 +286,8 @@ class _AppButtonState extends State<AppButton> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             if (widget.icon != null) ...[
-                              Icon(widget.icon, size: 20, color: finalTextColor),
-                              const SizedBox(width: 12),
+                              Icon(widget.icon, size: widget.dense ? 16 : 20, color: finalTextColor),
+                              SizedBox(width: widget.dense ? 6 : 12),
                             ],
                             Flexible(
                               child: Text(
@@ -292,7 +296,7 @@ class _AppButtonState extends State<AppButton> {
                                 style: TextStyle(
                                   color: finalTextColor,
                                   fontWeight: FontWeight.w600,
-                                  fontSize: 16,
+                                  fontSize: widget.dense ? 13 : 16,
                                 ),
                               ),
                             ),
@@ -319,6 +323,7 @@ class AppTextField extends StatefulWidget {
   final int? maxLines;
   final TextAlign textAlign;
   final IconData? icon;
+  final bool dense;
 
   const AppTextField({
     super.key,
@@ -331,6 +336,7 @@ class AppTextField extends StatefulWidget {
     this.maxLines = 1,
     this.textAlign = TextAlign.start,
     this.icon,
+    this.dense = false,
   });
 
   @override
@@ -352,8 +358,11 @@ class _AppTextFieldState extends State<AppTextField> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(widget.label, style: AppTypography.label),
+          padding: EdgeInsets.only(left: 4, bottom: widget.dense ? 4 : 8),
+          child: Text(widget.label,
+            style: widget.dense
+              ? AppTypography.label.copyWith(fontSize: 10)
+              : AppTypography.label),
         ),
         TextFormField(
           controller: widget.controller,
@@ -362,14 +371,17 @@ class _AppTextFieldState extends State<AppTextField> {
           validator: widget.validator,
           maxLines: widget.isObscure ? 1 : widget.maxLines,
           textAlign: widget.textAlign,
-          style: AppTypography.bodyLg,
+          style: widget.dense ? AppTypography.body.copyWith(fontSize: 13) : AppTypography.bodyLg,
           decoration: InputDecoration(
-            prefixIcon: widget.icon != null ? Icon(widget.icon, size: 20, color: kForegroundMuted) : null,
+            isDense: widget.dense,
+            prefixIcon: widget.icon != null
+              ? Icon(widget.icon, size: widget.dense ? 16 : 20, color: kForegroundMuted)
+              : null,
             suffixIcon: widget.isObscure
                 ? IconButton(
                     icon: Icon(
                       _obscure ? Icons.key_rounded : Icons.key_off_rounded,
-                      size: 20,
+                      size: widget.dense ? 16 : 20,
                       color: kForegroundMuted,
                     ),
                     onPressed: () => setState(() => _obscure = !_obscure),
@@ -377,10 +389,13 @@ class _AppTextFieldState extends State<AppTextField> {
                   )
                 : null,
             hintText: widget.hint,
-            hintStyle: TextStyle(color: kForegroundMuted.withValues(alpha: 0.5)),
+            hintStyle: TextStyle(color: kForegroundMuted.withValues(alpha: 0.5),
+              fontSize: widget.dense ? 12 : null),
             filled: true,
             fillColor: kSurfaceElevated.withValues(alpha: 0.5),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+            contentPadding: widget.dense
+              ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10)
+              : const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(kRadius),
               borderSide: BorderSide.none,

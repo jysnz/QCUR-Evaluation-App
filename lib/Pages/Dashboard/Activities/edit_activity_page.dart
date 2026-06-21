@@ -96,7 +96,43 @@ class _EditActivityPageState extends State<EditActivityPage> {
       AppCache.instance.invalidateWhere((k) => k.startsWith('subs:'));
       AppCache.instance.invalidateWhere((k) => k.startsWith('st:'));
 
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) {
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: kSurface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: const BoxDecoration(color: kAccent, shape: BoxShape.circle),
+                  child: const Icon(Icons.check_rounded, size: 32, color: Colors.white),
+                ),
+                const SizedBox(height: 16),
+                const Text('Activity Updated!', style: AppTypography.h3, textAlign: TextAlign.center),
+                const SizedBox(height: 6),
+                Text(
+                  '"${_nameController.text.trim()}" has been saved successfully.',
+                  style: AppTypography.caption.copyWith(color: kForegroundMuted),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                AppButton(
+                  label: 'Done',
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    Navigator.of(context).pop(true);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -130,45 +166,90 @@ class _EditActivityPageState extends State<EditActivityPage> {
               children: [
                 Expanded(
                   child: SingleChildScrollView(
-                    child: AppCard(
-                      padding: const EdgeInsets.all(kPaddingLarge),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        AppCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
                             children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: kAccent.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(kRadiusSmall),
-                                ),
-                                child: const Icon(Icons.edit_rounded, size: 18, color: kAccent),
+                              _field(
+                                icon: Icons.edit_rounded,
+                                hint: 'Activity name...',
+                                controller: _nameController,
                               ),
-                              const SizedBox(width: 12),
+                              const Divider(height: 1, color: kBorder, indent: 44),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.trending_up_rounded, size: 17, color: kAccent),
+                                    const SizedBox(width: 12),
+                                    Text('Scoring', style: AppTypography.caption.copyWith(color: kForegroundMuted, fontSize: 12)),
+                                    const Spacer(),
+                                    _scoringChip(label: 'Higher ▲', value: 'higher_is_better'),
+                                    const SizedBox(width: 6),
+                                    _scoringChip(label: 'Lower ▼', value: 'lower_is_better'),
+                                  ],
+                                ),
+                              ),
+                              if (widget.canChangeRole) ...[
+                                const Divider(height: 1, color: kBorder, indent: 44),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.psychology_outlined, size: 17, color: kAccent),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: DropdownButtonHideUnderline(
+                                          child: _isFetchingRoles
+                                              ? const Padding(
+                                                  padding: EdgeInsets.symmetric(vertical: 10),
+                                                  child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: kAccent)),
+                                                )
+                                              : DropdownButton<String>(
+                                                  value: _targetRoleId,
+                                                  isExpanded: true,
+                                                  hint: Text('Select a position', style: AppTypography.label.copyWith(color: kForegroundDisabled, fontSize: 13)),
+                                                  dropdownColor: kSurfaceElevated,
+                                                  style: AppTypography.body.copyWith(fontSize: 13, color: kForeground),
+                                                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kAccent, size: 16),
+                                                  isDense: true,
+                                                  items: _roles.map((role) => DropdownMenuItem(
+                                                    value: role['id'].toString(),
+                                                    child: Text(role['name'].toString()),
+                                                  )).toList(),
+                                                  onChanged: (v) => setState(() => _targetRoleId = v),
+                                                ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        AppCard(
+                          color: kInfo.withValues(alpha: 0.05),
+                          border: Border.all(color: kInfo.withValues(alpha: 0.2)),
+                          padding: const EdgeInsets.all(12),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.lightbulb_outline_rounded, color: kInfo, size: 18),
+                              const SizedBox(width: 10),
                               const Expanded(
-                                child: SectionHeader(
-                                  title: 'Edit Activity',
-                                  subtitle: 'Update activity details',
+                                child: Text(
+                                  'Changing the scoring type will affect how existing scores are ranked.',
+                                  style: TextStyle(color: kForegroundMuted, fontSize: 12),
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 28),
-                          AppTextField(
-                            label: 'Activity Name',
-                            hint: 'Enter activity name',
-                            controller: _nameController,
-                            icon: Icons.add_task_rounded,
-                          ),
-                          const SizedBox(height: 24),
-                          _buildScoringDirectionDropdown(),
-                          if (widget.canChangeRole) ...[
-                            const SizedBox(height: 24),
-                            _buildRoleDropdown(),
-                          ],
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -187,75 +268,52 @@ class _EditActivityPageState extends State<EditActivityPage> {
     );
   }
 
-  Widget _buildScoringDirectionDropdown() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Scoring Type', style: AppTypography.label),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: kSurfaceElevated,
-            borderRadius: BorderRadius.circular(kRadius),
-            border: Border.all(color: kBorder.withValues(alpha: 0.5)),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _scoringDirection,
-              isExpanded: true,
-              dropdownColor: kSurfaceElevated,
-              style: AppTypography.bodyLg.copyWith(fontWeight: FontWeight.bold),
-              icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kAccent),
-              items: const [
-                DropdownMenuItem(value: 'higher_is_better', child: Text('Higher is better (%)')),
-                DropdownMenuItem(value: 'lower_is_better', child: Text('Lower is better (Time/Errors)')),
-              ],
-              onChanged: (v) => setState(() => _scoringDirection = v!),
+  Widget _field({required IconData icon, required String hint, required TextEditingController controller}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 17, color: kAccent),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              style: AppTypography.body.copyWith(fontSize: 13),
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle: AppTypography.label.copyWith(color: kForegroundDisabled, fontSize: 13),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 9),
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildRoleDropdown() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Assign to Position', style: AppTypography.label),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: kSurfaceElevated,
-            borderRadius: BorderRadius.circular(kRadius),
-            border: Border.all(color: kBorder.withValues(alpha: 0.5)),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: _isFetchingRoles
-                ? const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 14),
-                    child: Center(
-                      child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: kAccent)),
-                    ),
-                  )
-                : DropdownButton<String>(
-                    value: _targetRoleId,
-                    isExpanded: true,
-                    hint: const Text('Select a position', style: TextStyle(color: kForegroundDisabled, fontSize: 14)),
-                    dropdownColor: kSurfaceElevated,
-                    style: AppTypography.bodyLg.copyWith(fontWeight: FontWeight.bold),
-                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kAccent),
-                    items: _roles.map((role) => DropdownMenuItem(
-                      value: role['id'].toString(),
-                      child: Text(role['name'].toString()),
-                    )).toList(),
-                    onChanged: (v) => setState(() => _targetRoleId = v),
-                  ),
+  Widget _scoringChip({required String label, required String value}) {
+    final isSelected = _scoringDirection == value;
+    return GestureDetector(
+      onTap: () => setState(() => _scoringDirection = value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: isSelected ? kAccent.withValues(alpha: 0.12) : Colors.transparent,
+          borderRadius: BorderRadius.circular(kRadiusSmall),
+          border: Border.all(color: isSelected ? kAccent : kBorder.withValues(alpha: 0.4)),
+        ),
+        child: Text(
+          label,
+          style: AppTypography.caption.copyWith(
+            color: isSelected ? kAccent : kForegroundMuted,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            fontSize: 11,
           ),
         ),
-      ],
+      ),
     );
   }
 }

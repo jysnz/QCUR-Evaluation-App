@@ -67,11 +67,46 @@ class _CreateSessionPageState extends State<CreateSessionPage> {
       AppCache.instance.invalidate('sessions');
 
       if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => SessionDetailsPage(
-              sessionId: data['id'],
-              sessionName: data['name'],
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: kSurface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: const BoxDecoration(color: kSuccess, shape: BoxShape.circle),
+                  child: const Icon(Icons.check_rounded, size: 32, color: Colors.white),
+                ),
+                const SizedBox(height: 16),
+                const Text('Session Created!', style: AppTypography.h3, textAlign: TextAlign.center),
+                const SizedBox(height: 6),
+                Text(
+                  '"${data['name']}" has been created successfully.',
+                  style: AppTypography.caption.copyWith(color: kForegroundMuted),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                AppButton(
+                  label: 'View Session',
+                  icon: Icons.arrow_forward_rounded,
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(
+                        builder: (_) => SessionDetailsPage(
+                          sessionId: data['id'],
+                          sessionName: data['name'],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
           ),
         );

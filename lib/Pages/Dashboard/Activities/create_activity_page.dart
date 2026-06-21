@@ -156,7 +156,45 @@ class _CreateActivityPageState extends State<CreateActivityPage> {
       AppCache.instance.invalidateWhere((k) => k.startsWith('acts:') && k.contains(widget.sessionId));
 
       if (mounted) {
-        Navigator.of(context).pop(true);
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: kSurface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: const BoxDecoration(color: kSuccess, shape: BoxShape.circle),
+                  child: const Icon(Icons.check_rounded, size: 32, color: Colors.white),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  isSubActivity ? 'Sub-activity Created!' : 'Activity Created!',
+                  style: AppTypography.h3,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '"${_nameController.text.trim()}" has been added successfully.',
+                  style: AppTypography.caption.copyWith(color: kForegroundMuted),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                AppButton(
+                  label: 'Done',
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    Navigator.of(context).pop(true);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {

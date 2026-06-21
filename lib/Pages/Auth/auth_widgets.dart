@@ -37,6 +37,7 @@ class AuthTextField extends StatelessWidget {
   final bool obscureText;
   final TextInputType keyboardType;
   final bool enabled;
+  final bool dense;
 
   const AuthTextField({
     super.key,
@@ -47,6 +48,7 @@ class AuthTextField extends StatelessWidget {
     this.obscureText = false,
     this.keyboardType = TextInputType.text,
     this.enabled = true,
+    this.dense = false,
   });
 
   @override
@@ -58,6 +60,7 @@ class AuthTextField extends StatelessWidget {
       icon: icon,
       isObscure: obscureText,
       keyboardType: keyboardType,
+      dense: dense,
     );
   }
 }
@@ -68,6 +71,7 @@ class AuthButton extends StatelessWidget {
   final bool isLoading;
   final Color color;
   final IconData? icon;
+  final bool dense;
 
   const AuthButton({
     super.key,
@@ -76,6 +80,7 @@ class AuthButton extends StatelessWidget {
     this.isLoading = false,
     this.color = kAccent,
     this.icon,
+    this.dense = false,
   });
 
   @override
@@ -86,6 +91,7 @@ class AuthButton extends StatelessWidget {
       isLoading: isLoading,
       color: color,
       icon: icon,
+      dense: dense,
     );
   }
 }
