@@ -4,6 +4,7 @@ import 'package:qcur_evaluation/Services/app_cache.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Trainees/add_trainee_page.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Trainees/edit_trainee_page.dart';
+import 'package:qcur_evaluation/Pages/Dashboard/Trainees/trainee_scores_page.dart';
 
 class SessionMembersTab extends StatefulWidget {
   final String sessionId;
@@ -45,6 +46,11 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
     } catch (e) {
       debugPrint('Error fetching roles: $e');
     }
+  }
+
+  Future<void> _refreshData() async {
+    AppCache.instance.invalidate('st_full:${widget.sessionId}');
+    await _fetchData();
   }
 
   Future<void> _fetchData() async {
@@ -140,7 +146,7 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator(color: kAccent))
                       : RefreshIndicator(
-                          onRefresh: _fetchData,
+                          onRefresh: _refreshData,
                           color: kAccent,
                           backgroundColor: kSurfaceElevated,
                           child: _allTrainees.isEmpty
@@ -243,9 +249,23 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
           padding: const EdgeInsets.only(bottom: 6.0),
           child: AppCard(
             padding: EdgeInsets.zero,
-            child: ListTile(
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(kRadius),
+              child: ListTile(
               dense: true,
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => TraineeScoresPage(
+                      traineeId: trainee['id'].toString(),
+                      traineeName: trainee['full_name'].toString(),
+                    ),
+                  ),
+                );
+              },
               leading: Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
@@ -365,6 +385,7 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
                   ),
                 ],
               ),
+            ),
             ),
           ),
         );

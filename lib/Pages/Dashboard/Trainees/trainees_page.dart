@@ -173,11 +173,6 @@ class _TraineesPageState extends State<TraineesPage> {
             padding: const EdgeInsets.all(kPadding),
             child: Column(
               children: [
-                const SectionHeader(
-                  title: 'Directory',
-                  subtitle: 'List of all registered members',
-                ),
-                const SizedBox(height: 24),
                 _buildSearchAndFilters(),
                 const SizedBox(height: 16),
                 Expanded(
@@ -339,7 +334,8 @@ class _TraineesPageState extends State<TraineesPage> {
               borderRadius: BorderRadius.circular(kRadius),
               splashColor: kAccent.withValues(alpha: 0.08),
               child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                dense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
                 leading: Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
@@ -375,7 +371,7 @@ class _TraineesPageState extends State<TraineesPage> {
                                 ),
                                 child: Text(
                                   r.toString(),
-                                  style: const TextStyle(color: kAccent, fontSize: 10, fontWeight: FontWeight.w600),
+                                  style: const TextStyle(color: kAccent, fontSize: 9, fontWeight: FontWeight.w600),
                                 ),
                               )).toList(),
                             ),

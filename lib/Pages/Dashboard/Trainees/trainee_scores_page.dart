@@ -30,6 +30,11 @@ class _TraineeScoresPageState extends State<TraineeScoresPage> {
     _fetchScores();
   }
 
+  Future<void> _refreshScores() async {
+    AppCache.instance.invalidate('trainee_results:${widget.traineeId}');
+    await _fetchScores();
+  }
+
   Future<void> _fetchScores() async {
     setState(() => _isLoading = true);
     try {
@@ -55,10 +60,10 @@ class _TraineeScoresPageState extends State<TraineeScoresPage> {
 
       final activityIds = resultsData.map((r) => r['activity_id']).toList();
 
-      // Fetch activities (including parent_id, session_id, name)
+      // Fetch activities (including parent_id, session_id, name, scoring_direction)
       final activitiesData = await supabase
           .from('activities')
-          .select('id, name, parent_id, session_id, target_role_id, roles(name)')
+          .select('id, name, parent_id, session_id, target_role_id, scoring_direction, roles(name)')
           .inFilter('id', activityIds);
 
       // Collect parent_ids that aren't already in results
@@ -93,24 +98,25 @@ class _TraineeScoresPageState extends State<TraineeScoresPage> {
       final Map<String, Map<String, dynamic>> activitiesMap = {
         for (var a in activitiesData) a['id'] as String: a,
       };
-      // For ranking: per activity, fetch all scores in the same session
-      // Build sessionId → activityId → [scores] map
-      final Map<String, Map<String, List<double>>> sessionActivityScores = {};
-
-      // Fetch all results for activities in the same sessions
+      // Fetch all results for the same activities to compute rank
       final allResultsData = await supabase
           .from('activity_results')
           .select('activity_id, score, trainee_id')
           .inFilter('activity_id', activityIds);
 
+      // Build sessionId → activityId → [{trainee_id, score}] for unique ranking
+      final Map<String, Map<String, List<Map<String, dynamic>>>> sessionActivityEntries = {};
       for (var r in allResultsData) {
         final actId = r['activity_id'] as String;
         final activity = activitiesMap[actId];
         if (activity == null) continue;
         final sessionId = activity['session_id'] as String;
-        sessionActivityScores.putIfAbsent(sessionId, () => {});
-        sessionActivityScores[sessionId]!.putIfAbsent(actId, () => []);
-        sessionActivityScores[sessionId]![actId]!.add((r['score'] as num).toDouble());
+        sessionActivityEntries.putIfAbsent(sessionId, () => {});
+        sessionActivityEntries[sessionId]!.putIfAbsent(actId, () => []);
+        sessionActivityEntries[sessionId]![actId]!.add({
+          'trainee_id': r['trainee_id'] as String,
+          'score': (r['score'] as num).toDouble(),
+        });
       }
 
       // Group results by session
@@ -126,10 +132,18 @@ class _TraineeScoresPageState extends State<TraineeScoresPage> {
 
         final score = (result['score'] as num).toDouble();
 
-        // Compute rank within session
-        final scores = sessionActivityScores[sessionId]?[actId] ?? [score];
-        final sortedScores = List<double>.from(scores)..sort((a, b) => b.compareTo(a));
-        final rank = sortedScores.indexOf(score) + 1;
+        // Compute unique rank: sort by scoring_direction, find this trainee's position
+        final direction = activity['scoring_direction'] as String? ?? 'higher_is_better';
+        final higherBetter = direction == 'higher_is_better';
+        final allEntries = List<Map<String, dynamic>>.from(
+          sessionActivityEntries[sessionId]?[actId] ??
+              [{'trainee_id': widget.traineeId, 'score': score}],
+        );
+        allEntries.sort((a, b) => higherBetter
+            ? (b['score'] as double).compareTo(a['score'] as double)
+            : (a['score'] as double).compareTo(b['score'] as double));
+        final rankIndex = allEntries.indexWhere((e) => e['trainee_id'] == widget.traineeId);
+        final rank = rankIndex < 0 ? 1 : rankIndex + 1;
 
         final roleName = activity['roles'] != null ? activity['roles']['name'] as String? : null;
 
@@ -140,7 +154,7 @@ class _TraineeScoresPageState extends State<TraineeScoresPage> {
           score: score,
           feedback: result['feedback'] as String?,
           rank: rank,
-          totalParticipants: scores.length,
+          totalParticipants: allEntries.length,
           roleName: roleName,
           sessionId: sessionId,
           sessionName: sessionsMap[sessionId]?['name'] as String? ?? 'Unknown Session',
@@ -326,7 +340,7 @@ class _TraineeScoresPageState extends State<TraineeScoresPage> {
                   ? _buildEmptyState()
                   : SafeArea(
                       child: RefreshIndicator(
-                        onRefresh: _fetchScores,
+                        onRefresh: _refreshScores,
                         color: kAccent,
                         backgroundColor: kSurfaceElevated,
                         child: ListView.builder(

@@ -3,6 +3,7 @@ import 'package:qcur_evaluation/Widgets/design_system.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Activities/activity_management_page.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Sessions/session_members_tab.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Sessions/rankings_tab.dart';
+import 'package:qcur_evaluation/Pages/Dashboard/Sessions/session_settings_tab.dart';
 
 class SessionDetailsPage extends StatefulWidget {
   final String sessionId;
@@ -20,6 +21,8 @@ class SessionDetailsPage extends StatefulWidget {
 
 class _SessionDetailsPageState extends State<SessionDetailsPage> {
   int _currentIndex = 0;
+  int _previousIndex = 0;
+  final _rankingsVisibilityTrigger = ValueNotifier<int>(0);
 
   late final List<Widget> _tabs;
 
@@ -36,13 +39,34 @@ class _SessionDetailsPageState extends State<SessionDetailsPage> {
       ),
       RankingsTab(
         sessionId: widget.sessionId,
+        visibilityTrigger: _rankingsVisibilityTrigger,
+      ),
+      SessionSettingsTab(
+        sessionId: widget.sessionId,
+        sessionName: widget.sessionName,
       ),
     ];
   }
 
   @override
+  void dispose() {
+    _rankingsVisibilityTrigger.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: _currentIndex == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          setState(() {
+            _currentIndex = _previousIndex;
+            _previousIndex = 0;
+          });
+        }
+      },
+      child: Scaffold(
       backgroundColor: kBackground,
       body: IndexedStack(
         index: _currentIndex,
@@ -62,7 +86,15 @@ class _SessionDetailsPageState extends State<SessionDetailsPage> {
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
-          onTap: (index) => setState(() => _currentIndex = index),
+          onTap: (index) {
+            if (index == 2 && _currentIndex != 2) {
+              _rankingsVisibilityTrigger.value++;
+            }
+            setState(() {
+              _previousIndex = _currentIndex;
+              _currentIndex = index;
+            });
+          },
           backgroundColor: kSurface,
           selectedItemColor: kAccent,
           unselectedItemColor: kForegroundDisabled,
@@ -82,8 +114,13 @@ class _SessionDetailsPageState extends State<SessionDetailsPage> {
               icon: Icon(Icons.emoji_events_outlined),
               label: 'Rankings',
             ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.tune_rounded),
+              label: 'Settings',
+            ),
           ],
         ),
+      ),
       ),
     );
   }

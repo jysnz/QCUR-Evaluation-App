@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:qcur_evaluation/Pages/Dashboard/dashboard_page.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 import 'package:qcur_evaluation/Pages/Auth/auth_widgets.dart';
 
@@ -144,10 +143,10 @@ class _RegisterPageState extends State<RegisterPage> {
                 label: 'Go to Dashboard',
                 onTap: () {
                   Navigator.of(dialogContext).pop();
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (context) => const DashboardPage()),
-                    (route) => false,
-                  );
+                  // Pop everything back to root — AuthRouter's onAuthStateChange
+                  // listener already detected the new session and will render
+                  // DashboardPage as the home widget.
+                  Navigator.of(context).popUntil((route) => route.isFirst);
                 },
               ),
             ],
@@ -183,6 +182,94 @@ class _RegisterPageState extends State<RegisterPage> {
           ],
         );
       },
+    );
+  }
+
+  Future<void> _showRateLimitDialog() async {
+    return showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: kSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            // Illustration
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF3CD),
+                shape: BoxShape.circle,
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  const Icon(Icons.mark_email_unread_rounded, size: 52, color: Color(0xFFE6A817)),
+                  Positioned(
+                    bottom: 12,
+                    right: 10,
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFE6A817),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.hourglass_top_rounded, size: 14, color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Too Many Attempts',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'We\'ve sent too many emails in a short time. Please wait a few minutes before trying again.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.6),
+                fontSize: 13,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'This is a temporary limit to protect against spam.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.35),
+                fontSize: 11,
+              ),
+            ),
+            const SizedBox(height: 28),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFE6A817),
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius)),
+                  elevation: 0,
+                ),
+                child: const Text('Got it', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -250,6 +337,18 @@ class _RegisterPageState extends State<RegisterPage> {
           }
         );
 
+        // If email confirmation is required there is no active session yet.
+        // The DB trigger already created the user_accounts row — skip the upsert
+        // here or it will fail RLS (auth.uid() is null without a session).
+        if (response.session == null && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Account created! Please confirm your email.')),
+          );
+          Navigator.of(context).pop();
+          return;
+        }
+
+        // Session exists → user is authenticated; update their full profile.
         if (response.user != null) {
           await supabase.from('user_accounts').upsert({
             'id': response.user!.id,
@@ -258,14 +357,6 @@ class _RegisterPageState extends State<RegisterPage> {
             'position': _selectedPosition,
             'avatar_url': avatarUrl,
           });
-        }
-
-        if (response.session == null && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Account created! Please confirm your email.')),
-          );
-          Navigator.of(context).pop();
-          return;
         }
       }
       
@@ -282,12 +373,22 @@ class _RegisterPageState extends State<RegisterPage> {
     } on AuthException catch (e) {
       if (mounted) {
         setState(() => _isRegistering = false);
-        _showErrorDialog(e.message);
+        final msg = e.message.toLowerCase();
+        if (msg.contains('rate limit') || msg.contains('over_email_send_rate_limit') || msg.contains('email rate')) {
+          _showRateLimitDialog();
+        } else {
+          _showErrorDialog(e.message);
+        }
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isRegistering = false);
-        _showErrorDialog(e.toString());
+        final msg = e.toString().toLowerCase();
+        if (msg.contains('rate limit') || msg.contains('over_email_send_rate_limit') || msg.contains('email rate')) {
+          _showRateLimitDialog();
+        } else {
+          _showErrorDialog(e.toString());
+        }
       }
     }
   }
@@ -305,17 +406,18 @@ class _RegisterPageState extends State<RegisterPage> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
+          toolbarHeight: 40,
           automaticallyImplyLeading: false,
           leading: widget.isGoogleSignUp
             ? IconButton(
-                icon: const Icon(Icons.logout_rounded, color: Colors.white38),
+                icon: const Icon(Icons.logout_rounded, color: Colors.white38, size: 20),
                 onPressed: () async {
                   await GoogleSignIn().signOut();
                   await Supabase.instance.client.auth.signOut();
                 },
               )
             : IconButton(
-                icon: const Icon(Icons.arrow_back_rounded, color: Colors.white70),
+                icon: const Icon(Icons.arrow_back_rounded, color: Colors.white70, size: 20),
                 onPressed: () => Navigator.of(context).pop(),
               ),
         ),
@@ -325,33 +427,24 @@ class _RegisterPageState extends State<RegisterPage> {
             SafeArea(
               child: Center(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                  padding: const EdgeInsets.symmetric(horizontal: kPadding, vertical: 4.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
                         widget.isGoogleSignUp ? 'Finish Profile' : 'Sign Up',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                          letterSpacing: 1.0,
-                        ),
+                        style: AppTypography.body.copyWith(fontWeight: FontWeight.w700),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 2),
                       Text(
-                        widget.isGoogleSignUp 
-                          ? 'Please add your info' 
+                        widget.isGoogleSignUp
+                          ? 'Please add your info'
                           : 'Create a new account',
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.white.withValues(alpha: 0.3),
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: AppTypography.caption.copyWith(color: kForegroundMuted, fontSize: 10),
                       ),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 10),
                       Center(
                         child: GestureDetector(
                           onTap: _pickImage,
@@ -364,7 +457,7 @@ class _RegisterPageState extends State<RegisterPage> {
                             child: Stack(
                               children: [
                                 CircleAvatar(
-                                  radius: 44,
+                                  radius: 40,
                                   backgroundColor: kSurface,
                                   backgroundImage: _imageFile != null
                                       ? FileImage(_imageFile!)
@@ -372,19 +465,19 @@ class _RegisterPageState extends State<RegisterPage> {
                                           ? NetworkImage(widget.initialImageUrl!)
                                           : null),
                                   child: (_imageFile == null && widget.initialImageUrl == null)
-                                      ? const Icon(Icons.person_outline, size: 40, color: Colors.white24)
+                                      ? const Icon(Icons.person_outline, size: 36, color: Colors.white24)
                                       : null,
                                 ),
                                 Positioned(
                                   bottom: 0,
                                   right: 0,
                                   child: Container(
-                                    padding: const EdgeInsets.all(4),
+                                    padding: const EdgeInsets.all(3),
                                     decoration: const BoxDecoration(
                                       color: kAccent,
                                       shape: BoxShape.circle,
                                     ),
-                                    child: const Icon(Icons.camera_alt_outlined, size: 14, color: Colors.white),
+                                    child: const Icon(Icons.camera_alt_outlined, size: 9, color: Colors.white),
                                   ),
                                 ),
                               ],
@@ -392,83 +485,82 @@ class _RegisterPageState extends State<RegisterPage> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 10),
                       AuthGlassCard(
+                        padding: const EdgeInsets.all(12),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             AuthTextField(
                               controller: _emailController,
-                              label: 'Access Email',
+                              label: 'Email',
                               hint: 'Enter your email address',
                               icon: Icons.email_outlined,
                               keyboardType: TextInputType.emailAddress,
                               enabled: !widget.isGoogleSignUp,
+                              dense: true,
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 8),
                             AuthTextField(
                               controller: _nameController,
                               label: 'Full Name',
                               hint: 'Enter your full name',
                               icon: Icons.badge_outlined,
+                              dense: true,
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 8),
                             AuthTextField(
                               controller: _passwordController,
-                              label: 'Your Password',
+                              label: 'Password',
                               hint: 'Choose a strong password',
                               icon: Icons.lock_outline,
                               obscureText: true,
+                              dense: true,
                             ),
-                            const SizedBox(height: 16),
-                            
+                            const SizedBox(height: 8),
                             Row(
                               children: [
-                                Text('Password Rules', 
-                                  style: AppTypography.label.copyWith(color: kForegroundDisabled)),
-                                const SizedBox(width: 8),
+                                Text('Password Rules',
+                                  style: AppTypography.label.copyWith(color: kForegroundDisabled, fontSize: 9)),
+                                const SizedBox(width: 6),
                                 Expanded(child: Divider(color: kBorder.withValues(alpha: 0.3))),
                               ],
                             ),
-                            const SizedBox(height: 12),
-                            
-                            _PasswordRequirement(label: '8 or more characters', isValid: _hasMinLength),
-                            _PasswordRequirement(label: 'At least 1 uppercase (A-Z)', isValid: _hasUppercase),
-                            _PasswordRequirement(label: 'At least 1 number (0-9)', isValid: _hasNumber),
-                            _PasswordRequirement(label: '1 special character (@, #, !, etc.)', isValid: _hasSpecialChar),
-                            
-                            const SizedBox(height: 16),
-                            
+                            const SizedBox(height: 4),
+                            _PasswordRequirement(label: '8+ characters', isValid: _hasMinLength),
+                            _PasswordRequirement(label: 'Uppercase (A-Z)', isValid: _hasUppercase),
+                            _PasswordRequirement(label: 'Number (0-9)', isValid: _hasNumber),
+                            _PasswordRequirement(label: 'Special character', isValid: _hasSpecialChar),
+                            const SizedBox(height: 8),
                             AuthTextField(
                               controller: _confirmPasswordController,
                               label: 'Confirm Password',
                               hint: 'Repeat your password',
                               icon: Icons.lock_reset_rounded,
                               obscureText: true,
+                              dense: true,
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 4),
                             if (_confirmPasswordController.text.isNotEmpty)
                               _PasswordRequirement(label: 'Passwords Match', isValid: _passwordsMatch),
-                            
-                            const SizedBox(height: 24),
-                            
-                            Text('Position', style: AppTypography.label),
-                            const SizedBox(height: 8),
-                            
+                            const SizedBox(height: 10),
+                            Text('Position',
+                              style: AppTypography.label.copyWith(fontSize: 10)),
+                            const SizedBox(height: 4),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                               decoration: BoxDecoration(
-                                color: kBackground.withValues(alpha: 0.3),
+                                color: kSurfaceElevated.withValues(alpha: 0.5),
                                 borderRadius: BorderRadius.circular(kRadius),
-                                border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                                border: Border.all(color: kBorder),
                               ),
                               child: DropdownButtonHideUnderline(
                                 child: DropdownButton<String>(
                                   value: _selectedPosition,
                                   isExpanded: true,
                                   dropdownColor: kSurface,
-                                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kAccent),
-                                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kAccent, size: 18),
+                                  style: AppTypography.body.copyWith(fontSize: 13),
                                   items: _positions.map((String position) {
                                     return DropdownMenuItem<String>(
                                       value: position,
@@ -476,42 +568,37 @@ class _RegisterPageState extends State<RegisterPage> {
                                     );
                                   }).toList(),
                                   onChanged: (String? newValue) {
-                                    if (newValue != null) {
-                                      setState(() {
-                                        _selectedPosition = newValue;
-                                      });
-                                    }
+                                    if (newValue != null) setState(() => _selectedPosition = newValue);
                                   },
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 32),
+                            const SizedBox(height: 12),
                             AuthButton(
                               label: widget.isGoogleSignUp ? 'Save Profile' : 'Create Account',
                               onPressed: _register,
                               isLoading: _isRegistering,
+                              dense: true,
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 8),
                       if (!widget.isGoogleSignUp)
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              "Already have an account?",
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.3),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
+                              'Already have an account?',
+                              style: AppTypography.caption.copyWith(color: kForegroundMuted, fontSize: 10),
                             ),
                             TextButton(
                               onPressed: () => Navigator.of(context).pop(),
                               style: TextButton.styleFrom(
                                 foregroundColor: kAccent,
-                                textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                                textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                                padding: const EdgeInsets.symmetric(horizontal: 6),
+                                minimumSize: Size.zero,
                               ),
                               child: const Text('Log In'),
                             ),
@@ -541,19 +628,19 @@ class _PasswordRequirement extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 4),
+      padding: const EdgeInsets.only(left: 2, bottom: 2),
       child: Row(
         children: [
           Icon(
             isValid ? Icons.check_circle_rounded : Icons.radio_button_off_rounded,
-            size: 14,
+            size: 11,
             color: isValid ? kAccent : Colors.white12,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 5),
           Text(
             label,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 10,
               color: isValid ? Colors.white70 : Colors.white24,
               fontWeight: FontWeight.w600,
             ),

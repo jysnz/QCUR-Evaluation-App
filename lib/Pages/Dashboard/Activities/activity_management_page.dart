@@ -166,13 +166,47 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
 
     if (confirm == true) {
       try {
-        // Delete sub-activities first, then the parent
+        final activityName = activity['name'] as String;
         await supabase.from('activities').delete().eq('parent_id', activity['id']);
         await supabase.from('activities').delete().eq('id', activity['id']);
 
         AppCache.instance.invalidateWhere((k) => k.startsWith('acts:'));
         AppCache.instance.invalidateWhere((k) => k.startsWith('subs:'));
         _fetchData();
+
+        if (mounted) {
+          await showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              backgroundColor: kSurface,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(color: kError.withValues(alpha: 0.15), shape: BoxShape.circle),
+                    child: const Icon(Icons.delete_rounded, size: 32, color: kError),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Activity Deleted', style: AppTypography.h3, textAlign: TextAlign.center),
+                  const SizedBox(height: 6),
+                  Text(
+                    '"$activityName" has been permanently deleted.',
+                    style: AppTypography.caption.copyWith(color: kForegroundMuted),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  AppButton(
+                    label: 'Done',
+                    onTap: () => Navigator.of(ctx).pop(),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
       } catch (e) {
         messenger.showSnackBar(SnackBar(content: Text('Delete failed: $e')));
       }
@@ -238,7 +272,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
                       Padding(
                         padding: const EdgeInsets.all(kPadding),
                         child: AppButton(
-                          label: 'Add Root Activity',
+                          label: 'Add Activity',
                           icon: Icons.add_circle_outline,
                           onTap: () => _navigateToCreateActivity(),
                         ),
@@ -308,7 +342,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
                   children: [
                     Row(
                       children: [
-                        if (hasSubActivities) ...[
+                        if (isParent) ...[
                           Container(
                             padding: const EdgeInsets.all(4),
                             decoration: BoxDecoration(
@@ -330,24 +364,6 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        if (hasSubActivities)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: kInfo.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text('GROUP', style: TextStyle(color: kInfo, fontSize: 9, fontWeight: FontWeight.bold)),
-                          )
-                        else if (activity['is_graded'] == true)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: kAccent.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text('GRADED', style: TextStyle(color: kAccent, fontSize: 9, fontWeight: FontWeight.bold)),
-                          ),
                         PopupMenuButton<String>(
                           padding: EdgeInsets.zero,
                           color: kSurfaceElevated,

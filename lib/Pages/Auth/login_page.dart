@@ -137,29 +137,30 @@ class _LoginPageState extends State<LoginPage> {
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: kPaddingLarge, vertical: 32.0),
+                padding: const EdgeInsets.symmetric(horizontal: kPadding, vertical: 16.0),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Image.asset(
                       'Images/logo1.jpg',
-                      height: 130,
+                      height: 72,
                     ),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 16),
                     const Text(
                       'Welcome Back',
                       textAlign: TextAlign.center,
-                      style: AppTypography.h1,
+                      style: AppTypography.h3,
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 4),
                     Text(
                       'Please sign in to continue',
                       textAlign: TextAlign.center,
-                      style: AppTypography.body.copyWith(color: kForegroundMuted),
+                      style: AppTypography.caption.copyWith(color: kForegroundMuted),
                     ),
-                    const SizedBox(height: 48),
+                    const SizedBox(height: 24),
                     AuthGlassCard(
+                      padding: const EdgeInsets.all(kPadding),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
@@ -169,16 +170,18 @@ class _LoginPageState extends State<LoginPage> {
                             hint: 'your@email.com',
                             icon: Icons.alternate_email_rounded,
                             keyboardType: TextInputType.emailAddress,
+                            dense: true,
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 8),
                           AuthTextField(
                             controller: _passwordController,
                             label: 'Password',
                             hint: '••••••••',
                             icon: Icons.lock_outline_rounded,
                             obscureText: true,
+                            dense: true,
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 4),
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
@@ -187,37 +190,36 @@ class _LoginPageState extends State<LoginPage> {
                                 padding: const EdgeInsets.symmetric(horizontal: 8),
                                 minimumSize: Size.zero,
                               ),
-                              child: Text('Forgot password?', 
+                              child: Text('Forgot password?',
                                 style: AppTypography.caption.copyWith(
                                   color: kAccent,
                                   fontWeight: FontWeight.w600,
                                 )),
                             ),
                           ),
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 16),
                           AuthButton(
                             label: 'Sign In',
                             onPressed: _signIn,
                             isLoading: _isLoading,
                             icon: Icons.login_rounded,
+                            dense: true,
                           ),
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 16),
                           Row(
                             children: [
                               Expanded(child: Divider(color: kBorder.withValues(alpha: 0.5))),
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
                                 child: Text(
                                   'OR CONTINUE WITH',
-                                  style: AppTypography.label.copyWith(
-                                    fontSize: 10,
-                                  ),
+                                  style: AppTypography.label.copyWith(fontSize: 10),
                                 ),
                               ),
                               Expanded(child: Divider(color: kBorder.withValues(alpha: 0.5))),
                             ],
                           ),
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 16),
                           AppButton(
                             label: 'Google',
                             color: kSurfaceElevated,
@@ -225,11 +227,12 @@ class _LoginPageState extends State<LoginPage> {
                             onTap: _isLoading ? null : _signInWithGoogle,
                             icon: Icons.g_mobiledata_rounded,
                             isSecondary: true,
+                            dense: true,
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 16),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [

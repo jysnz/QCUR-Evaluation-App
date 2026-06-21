@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qcur_evaluation/Services/app_cache.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Sessions/create_session_page.dart';
+import 'package:qcur_evaluation/Pages/Dashboard/Sessions/edit_session_page.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Sessions/session_details_page.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Trainees/trainees_page.dart';
 import 'package:qcur_evaluation/Pages/Auth/account_page.dart';
@@ -17,10 +18,52 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   int _currentIndex = 0;
+  int _previousIndex = 0;
+
+  Future<void> _confirmExit() async {
+    final shouldExit = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: kSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius)),
+        title: const Text('Exit App?', style: AppTypography.h3),
+        content: const Text(
+          'Are you sure you want to exit the application?',
+          style: AppTypography.body,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Exit', style: TextStyle(color: kError, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (shouldExit == true && mounted) {
+      Navigator.of(context).pop();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_currentIndex != 0) {
+          setState(() {
+            _currentIndex = _previousIndex;
+            _previousIndex = 0;
+          });
+        } else {
+          _confirmExit();
+        }
+      },
+      child: Scaffold(
       backgroundColor: kBackground,
       body: IndexedStack(
         index: _currentIndex,
@@ -43,7 +86,10 @@ class _DashboardPageState extends State<DashboardPage> {
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
-          onTap: (index) => setState(() => _currentIndex = index),
+          onTap: (index) => setState(() {
+            _previousIndex = _currentIndex;
+            _currentIndex = index;
+          }),
           backgroundColor: kSurface,
           selectedItemColor: kAccent,
           unselectedItemColor: kForegroundDisabled,
@@ -62,6 +108,7 @@ class _DashboardPageState extends State<DashboardPage> {
           ],
         ),
       ),
+      ),
     );
   }
 }
@@ -78,6 +125,12 @@ class _SessionsTabState extends State<_SessionsTab> {
   List<Map<String, dynamic>> _sessions = [];
   Map<String, dynamic>? _userProfile;
   bool _isLoading = true;
+  String? _statusFilter; // null = all, 'active', 'completed'
+
+  List<Map<String, dynamic>> get _filteredSessions {
+    if (_statusFilter == null) return _sessions;
+    return _sessions.where((s) => s['status'] == _statusFilter).toList();
+  }
 
   @override
   void initState() {
@@ -128,6 +181,73 @@ class _SessionsTabState extends State<_SessionsTab> {
     }
   }
 
+  Future<void> _deleteSession(Map<String, dynamic> session) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: kSurface,
+        title: const Text('Delete session?', style: AppTypography.h3),
+        content: Text(
+          'This will permanently delete "${session['name']}" and all its activities, scores, and members. This cannot be undone.',
+          style: AppTypography.body,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete', style: TextStyle(color: kError, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    try {
+      final sessionId = session['id'] as String;
+      final sessionName = session['name'] as String;
+      await supabase.from('training_sessions').delete().eq('id', sessionId);
+      AppCache.instance.invalidate('sessions');
+      AppCache.instance.invalidateWhere((k) =>
+          k.contains(sessionId) || k.startsWith('st:'));
+      _fetchSessions();
+      if (mounted) {
+        await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: kSurface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(color: kError.withValues(alpha: 0.15), shape: BoxShape.circle),
+                  child: const Icon(Icons.delete_rounded, size: 32, color: kError),
+                ),
+                const SizedBox(height: 16),
+                const Text('Session Deleted', style: AppTypography.h3, textAlign: TextAlign.center),
+                const SizedBox(height: 6),
+                Text(
+                  '"$sessionName" has been permanently deleted.',
+                  style: AppTypography.caption.copyWith(color: kForegroundMuted),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                AppButton(
+                  label: 'Done',
+                  onTap: () => Navigator.of(ctx).pop(),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+    }
+  }
+
   Future<void> _fetchSessions() async {
     try {
       AppCache.instance.invalidate('sessions');
@@ -146,6 +266,11 @@ class _SessionsTabState extends State<_SessionsTab> {
         );
       }
     }
+  }
+
+  Future<void> _refreshData() async {
+    AppCache.instance.invalidate('sessions');
+    await _fetchData();
   }
 
   @override
@@ -196,20 +321,7 @@ class _SessionsTabState extends State<_SessionsTab> {
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Notifications coming soon'),
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            },
-            icon: const Icon(Icons.notifications_none_rounded, color: kForeground),
-          ),
-          const SizedBox(width: 8),
-        ],
+        actions: const [],
       ),
       body: Stack(
         children: [
@@ -232,12 +344,14 @@ class _SessionsTabState extends State<_SessionsTab> {
                     child: _isLoading
                         ? const AppLoader()
                         : RefreshIndicator(
-                            onRefresh: _fetchData,
+                            onRefresh: _refreshData,
                             color: kAccent,
                             backgroundColor: kSurfaceElevated,
                             child: _sessions.isEmpty
                                 ? _buildEmptyState()
-                                : _buildSessionsList(),
+                                : _filteredSessions.isEmpty
+                                    ? _buildFilteredEmptyState()
+                                    : _buildSessionsList(),
                           ),
                   ),
                   const SizedBox(height: 16),
@@ -245,14 +359,12 @@ class _SessionsTabState extends State<_SessionsTab> {
                     label: 'New Training Session',
                     icon: Icons.add_rounded,
                     onTap: () async {
-                      final result = await Navigator.of(context).push(
+                      await Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (context) => const CreateSessionPage(),
                         ),
                       );
-                      if (result == true) {
-                        _fetchSessions();
-                      }
+                      _fetchSessions();
                     },
                   ),
                   const SizedBox(height: 16),
@@ -266,61 +378,85 @@ class _SessionsTabState extends State<_SessionsTab> {
   }
 
   Widget _buildStatsRow() {
+    final activeCount = _sessions.where((s) => s['status'] == 'active').length;
+    final completedCount = _sessions.where((s) => s['status'] == 'completed').length;
     return Row(
       children: [
         Expanded(
-          child: _buildStatItem('Total', _sessions.length.toString(), kInfo, Icons.auto_awesome_rounded),
+          child: _buildStatItem('Active', activeCount.toString(), kSuccess, Icons.rocket_launch_rounded, 'active'),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: _buildStatItem('Active', _sessions.where((s) => s['status'] == 'active').length.toString(), kAccent, Icons.rocket_launch_rounded),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildStatItem('Done', _sessions.where((s) => s['status'] == 'completed').length.toString(), kSuccess, Icons.task_alt_rounded),
+          child: _buildStatItem('Completed', completedCount.toString(), kInfo, Icons.task_alt_rounded, 'completed'),
         ),
       ],
     );
   }
 
-  Widget _buildStatItem(String label, String value, Color color, IconData icon) {
-    return AppCard(
-      padding: const EdgeInsets.all(16),
-      color: kSurface,
-      border: Border.all(color: color.withValues(alpha: 0.15)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 14, color: color),
-              const SizedBox(width: 6),
-              Text(label, style: AppTypography.label.copyWith(color: color, fontSize: 10)),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(value, style: AppTypography.statValue.copyWith(color: color)),
-        ],
+  Widget _buildStatItem(String label, String value, Color color, IconData icon, String? filterKey) {
+    final isSelected = _statusFilter == filterKey && filterKey != null;
+    return GestureDetector(
+      onTap: filterKey == null
+          ? null
+          : () => setState(() => _statusFilter = _statusFilter == filterKey ? null : filterKey),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withValues(alpha: 0.1) : kSurface,
+          borderRadius: BorderRadius.circular(kRadius),
+          border: Border.all(color: isSelected ? color.withValues(alpha: 0.5) : color.withValues(alpha: 0.15), width: isSelected ? 1.5 : 1),
+          boxShadow: kCardShadow,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 14, color: color),
+                const SizedBox(width: 6),
+                Text(label, style: AppTypography.label.copyWith(color: color, fontSize: 10)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(value, style: AppTypography.statValue.copyWith(color: color)),
+          ],
+        ),
       ),
     );
   }
 
   Color _statusColor(String status) {
     switch (status) {
-      case 'active': return kAccent;
-      case 'completed': return kSuccess;
-      case 'planned': return kInfo;
+      case 'active': return kSuccess;
+      case 'completed': return kInfo;
       default: return kForegroundMuted;
     }
   }
 
+  Widget _buildFilteredEmptyState() {
+    final isActive = _statusFilter == 'active';
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        SizedBox(height: MediaQuery.of(context).size.height * 0.18),
+        AppEmptyState(
+          icon: isActive ? Icons.rocket_launch_rounded : Icons.task_alt_rounded,
+          title: 'No ${isActive ? 'Active' : 'Completed'} Sessions',
+          message: 'No ${isActive ? 'active' : 'completed'} sessions found. Tap a status card again to clear the filter.',
+        ),
+      ],
+    );
+  }
+
   Widget _buildSessionsList() {
+    final sessions = _filteredSessions;
     return ListView.builder(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.only(top: 4),
-      itemCount: _sessions.length,
+      itemCount: sessions.length,
       itemBuilder: (context, index) {
-        final session = _sessions[index];
+        final session = sessions[index];
         final date = DateTime.parse(session['date']);
         final color = _statusColor(session['status']);
 
@@ -332,7 +468,7 @@ class _SessionsTabState extends State<_SessionsTab> {
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(kRadius),
-                border: Border.all(color: kBorder.withValues(alpha: 0.5)),
+                border: Border.all(color: color.withValues(alpha: 0.35)),
                 boxShadow: kCardShadow,
               ),
               child: ClipRRect(
@@ -387,15 +523,59 @@ class _SessionsTabState extends State<_SessionsTab> {
                           ),
                         ),
                         Center(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            child: AppStatusBadge(label: session['status'], color: color),
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              session['status'] == 'completed' ? 'Completed' : 'Active',
+                              style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 0.4),
+                            ),
                           ),
                         ),
-                        const Center(
-                          child: Icon(Icons.chevron_right_rounded, color: kForegroundDisabled, size: 18),
+                        Center(
+                          child: PopupMenuButton<String>(
+                            icon: const Icon(Icons.more_vert_rounded, color: kForegroundDisabled, size: 18),
+                            color: kSurfaceElevated,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusSmall)),
+                            onSelected: (value) async {
+                              if (value == 'edit') {
+                                final result = await Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => EditSessionPage(session: session),
+                                  ),
+                                );
+                                if (result == true) _fetchSessions();
+                              } else if (value == 'delete') {
+                                _deleteSession(session);
+                              }
+                            },
+                            itemBuilder: (_) => [
+                              PopupMenuItem(
+                                value: 'edit',
+                                height: 40,
+                                child: Row(children: [
+                                  const Icon(Icons.edit_outlined, size: 15, color: kForeground),
+                                  const SizedBox(width: 10),
+                                  Text('Edit', style: AppTypography.body.copyWith(fontSize: 13)),
+                                ]),
+                              ),
+                              PopupMenuItem(
+                                value: 'delete',
+                                height: 40,
+                                child: Row(children: [
+                                  const Icon(Icons.delete_outline_rounded, size: 15, color: kError),
+                                  const SizedBox(width: 10),
+                                  Text('Delete', style: AppTypography.body.copyWith(fontSize: 13, color: kError)),
+                                ]),
+                              ),
+                            ],
+                          ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 4),
                       ],
                     ),
                   ),

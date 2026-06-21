@@ -43,7 +43,6 @@ class _EditTraineePageState extends State<EditTraineePage> {
 
   Future<void> _loadData() async {
     try {
-      // Load available roles from cache
       final cached = AppCache.instance.get<List<dynamic>>('roles');
       final rolesData = cached ?? await supabase.from('roles').select().order('name');
       if (cached == null) {
@@ -51,7 +50,6 @@ class _EditTraineePageState extends State<EditTraineePage> {
       }
       final roles = List<Map<String, dynamic>>.from(rolesData);
 
-      // Load this trainee's current role assignments
       final assignedRoles = await supabase
           .from('trainee_roles')
           .select('role_id')
@@ -91,11 +89,13 @@ class _EditTraineePageState extends State<EditTraineePage> {
       final traineeId = widget.trainee['id'] as String;
       final roleNames = _selectedRoles.map((r) => r['name'].toString()).toList();
 
-      await supabase.from('trainees').update({
+      final updateData = <String, dynamic>{
         'full_name': _nameController.text.trim(),
-        'email': _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
         'role': roleNames,
-      }).eq('id', traineeId);
+        'email': _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
+      };
+
+      await supabase.from('trainees').update(updateData).eq('id', traineeId);
 
       await supabase.from('trainee_roles').delete().eq('trainee_id', traineeId);
       await supabase.from('trainee_roles').insert(
@@ -106,13 +106,61 @@ class _EditTraineePageState extends State<EditTraineePage> {
       AppCache.instance.invalidate('st_full:${widget.sessionId}');
       AppCache.instance.invalidateWhere((k) => k.startsWith('st:'));
 
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) {
+        setState(() => _isSaving = false);
+        await _showSuccessDialog(_nameController.text.trim());
+        if (mounted) Navigator.of(context).pop(true);
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving: $e')));
         setState(() => _isSaving = false);
       }
     }
+  }
+
+  Future<void> _showSuccessDialog(String name) async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: kSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: kSuccess.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check_rounded, color: kSuccess, size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(child: Text('Changes Saved', style: AppTypography.h3)),
+          ],
+        ),
+        content: Text(
+          '$name has been successfully updated.',
+          style: AppTypography.body,
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kAccent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusLarge)),
+                elevation: 0,
+              ),
+              child: const Text('Done', style: TextStyle(fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   String _getInitials(String name) {
@@ -145,123 +193,70 @@ class _EditTraineePageState extends State<EditTraineePage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Center(
-                              child: AnimatedBuilder(
-                                animation: _nameController,
-                                builder: (context, _) {
-                                  final initials = _nameController.text.trim().isEmpty
-                                      ? '?'
-                                      : _getInitials(_nameController.text.trim());
-                                  return Container(
-                                    width: 72,
-                                    height: 72,
-                                    decoration: BoxDecoration(
-                                      color: kAccent.withValues(alpha: 0.15),
-                                      shape: BoxShape.circle,
-                                      border: Border.all(color: kAccent.withValues(alpha: 0.3), width: 2),
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        initials,
-                                        style: AppTypography.h2.copyWith(color: kAccent, fontSize: 26),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                            const SizedBox(height: 24),
+                            // Compact profile preview
+                            _buildProfilePreview(),
+                            const SizedBox(height: 20),
 
+                            // Info fields
                             AppCard(
-                              padding: const EdgeInsets.all(kPaddingLarge),
+                              padding: EdgeInsets.zero,
                               child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(7),
-                                        decoration: BoxDecoration(
-                                          color: kAccent.withValues(alpha: 0.1),
-                                          borderRadius: BorderRadius.circular(kRadiusSmall),
-                                        ),
-                                        child: const Icon(Icons.badge_outlined, size: 16, color: kAccent),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      const Expanded(
-                                        child: SectionHeader(
-                                          title: 'Identity',
-                                          subtitle: 'Basic member information',
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 24),
-                                  AppTextField(
-                                    label: 'Full Name',
-                                    hint: 'Enter full name',
-                                    controller: _nameController,
+                                  _field(
                                     icon: Icons.person_outline_rounded,
+                                    hint: 'Full Name',
+                                    controller: _nameController,
                                   ),
-                                  const SizedBox(height: 16),
-                                  AppTextField(
-                                    label: 'Email (Optional)',
-                                    hint: 'Enter email address',
+                                  const Divider(height: 1, color: kBorder, indent: 44),
+                                  _field(
+                                    icon: Icons.email_outlined,
+                                    hint: 'Email (optional)',
                                     controller: _emailController,
-                                    icon: Icons.alternate_email_rounded,
                                     keyboardType: TextInputType.emailAddress,
                                   ),
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 12),
 
+                            // Position card
                             AppCard(
-                              padding: const EdgeInsets.all(kPaddingLarge),
+                              padding: const EdgeInsets.all(kPadding),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Row(
                                     children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(7),
-                                        decoration: BoxDecoration(
-                                          color: kInfo.withValues(alpha: 0.1),
-                                          borderRadius: BorderRadius.circular(kRadiusSmall),
-                                        ),
-                                        child: const Icon(Icons.psychology_outlined, size: 16, color: kInfo),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      const Expanded(
-                                        child: SectionHeader(
-                                          title: 'Position',
-                                          subtitle: 'Assign one or more roles',
+                                      const Icon(Icons.psychology_outlined, size: 14, color: kInfo),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'POSITION',
+                                        style: AppTypography.overline.copyWith(
+                                          color: kInfo, fontSize: 10, letterSpacing: 1.1,
                                         ),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 20),
+                                  const SizedBox(height: 12),
                                   if (_availableRoles.isEmpty)
                                     const Center(child: Text('No roles available', style: AppTypography.caption))
                                   else
                                     Wrap(
-                                      spacing: 8,
-                                      runSpacing: 10,
+                                      spacing: 6,
+                                      runSpacing: 8,
                                       children: _availableRoles.map((role) {
                                         final isSelected = _selectedRoles.any((r) => r['id'] == role['id']);
                                         return GestureDetector(
-                                          onTap: () {
-                                            setState(() {
-                                              if (isSelected) {
-                                                _selectedRoles.removeWhere((r) => r['id'] == role['id']);
-                                              } else {
-                                                _selectedRoles.add(role);
-                                              }
-                                            });
-                                          },
+                                          onTap: () => setState(() {
+                                            if (isSelected) {
+                                              _selectedRoles.removeWhere((r) => r['id'] == role['id']);
+                                            } else {
+                                              _selectedRoles.add(role);
+                                            }
+                                          }),
                                           child: AnimatedContainer(
-                                            duration: const Duration(milliseconds: 180),
-                                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                                            duration: const Duration(milliseconds: 150),
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                                             decoration: BoxDecoration(
                                               color: isSelected ? kAccent.withValues(alpha: 0.12) : kSurfaceElevated,
                                               borderRadius: BorderRadius.circular(kRadiusSmall),
@@ -274,17 +269,17 @@ class _EditTraineePageState extends State<EditTraineePage> {
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
                                                 Icon(
-                                                  isSelected ? Icons.check_circle_rounded : Icons.radio_button_off_rounded,
-                                                  size: 15,
+                                                  isSelected ? Icons.check_circle_rounded : Icons.circle_outlined,
+                                                  size: 13,
                                                   color: isSelected ? kAccent : kForegroundDisabled,
                                                 ),
-                                                const SizedBox(width: 8),
+                                                const SizedBox(width: 6),
                                                 Text(
                                                   role['name'].toString(),
                                                   style: AppTypography.body.copyWith(
                                                     color: isSelected ? kForeground : kForegroundMuted,
                                                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                                                    fontSize: 13,
+                                                    fontSize: 12,
                                                   ),
                                                 ),
                                               ],
@@ -296,7 +291,6 @@ class _EditTraineePageState extends State<EditTraineePage> {
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 24),
                           ],
                         ),
                       ),
@@ -314,6 +308,92 @@ class _EditTraineePageState extends State<EditTraineePage> {
                   ],
                 ),
               ),
+      ),
+    );
+  }
+
+  Widget _buildProfilePreview() {
+    return Row(
+      children: [
+        AnimatedBuilder(
+          animation: _nameController,
+          builder: (_, child) {
+            final name = _nameController.text.trim();
+            return Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: kAccent.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+                border: Border.all(color: kAccent.withValues(alpha: 0.3)),
+              ),
+              child: Center(
+                child: Text(
+                  name.isEmpty ? '?' : _getInitials(name),
+                  style: AppTypography.body.copyWith(
+                    color: kAccent, fontWeight: FontWeight.w700, fontSize: 16,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AnimatedBuilder(
+                animation: _nameController,
+                builder: (_, child) => Text(
+                  _nameController.text.trim().isEmpty ? 'Member' : _nameController.text.trim(),
+                  style: AppTypography.body.copyWith(fontWeight: FontWeight.w700, fontSize: 14),
+                ),
+              ),
+              AnimatedBuilder(
+                animation: _nameController,
+                builder: (_, child) => Text(
+                  _selectedRoles.isEmpty ? 'No role assigned' : _selectedRoles.map((r) => r['name']).join(', '),
+                  style: AppTypography.caption.copyWith(
+                    color: _selectedRoles.isEmpty ? kForegroundDisabled : kAccent,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _field({
+    required IconData icon,
+    required String hint,
+    required TextEditingController controller,
+    TextInputType? keyboardType,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 17, color: kAccent),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              keyboardType: keyboardType,
+              style: AppTypography.body.copyWith(fontSize: 13),
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle: AppTypography.label.copyWith(color: kForegroundDisabled, fontSize: 13),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 13),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
