@@ -17,7 +17,6 @@ class AddTraineePage extends StatefulWidget {
 
 class _AddTraineePageState extends State<AddTraineePage> {
   final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
   final List<Map<String, dynamic>> _selectedRoles = [];
   bool _isLoading = true;
   bool _isSaving = false;
@@ -35,7 +34,6 @@ class _AddTraineePageState extends State<AddTraineePage> {
   @override
   void dispose() {
     _nameController.dispose();
-    _emailController.dispose();
     super.dispose();
   }
 
@@ -80,8 +78,6 @@ class _AddTraineePageState extends State<AddTraineePage> {
         'role': roleNames,
         'creator_id': supabase.auth.currentUser!.id,
       };
-      final email = _emailController.text.trim();
-      if (email.isNotEmpty) insertData['email'] = email;
 
       final traineeData = await supabase.from('trainees').insert(insertData).select().single();
       final traineeId = traineeData['id'];
@@ -104,7 +100,6 @@ class _AddTraineePageState extends State<AddTraineePage> {
         final savedName = _nameController.text.trim();
         if (_createMore) {
           _nameController.clear();
-          _emailController.clear();
           setState(() {
             _selectedRoles.clear();
             _isSaving = false;
@@ -181,7 +176,12 @@ class _AddTraineePageState extends State<AddTraineePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) Navigator.of(context).pop(_anySaved);
+      },
+      child: Scaffold(
       backgroundColor: kBackground,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -210,21 +210,10 @@ class _AddTraineePageState extends State<AddTraineePage> {
                             // Info fields grouped in one card
                             AppCard(
                               padding: EdgeInsets.zero,
-                              child: Column(
-                                children: [
-                                  _field(
-                                    icon: Icons.person_outline_rounded,
-                                    hint: 'Full Name',
-                                    controller: _nameController,
-                                  ),
-                                  const Divider(height: 1, color: kBorder, indent: 44),
-                                  _field(
-                                    icon: Icons.email_outlined,
-                                    hint: 'Email (optional)',
-                                    controller: _emailController,
-                                    keyboardType: TextInputType.emailAddress,
-                                  ),
-                                ],
+                              child: _field(
+                                icon: Icons.person_outline_rounded,
+                                hint: 'Full Name',
+                                controller: _nameController,
                               ),
                             ),
                             const SizedBox(height: 12),
@@ -326,6 +315,7 @@ class _AddTraineePageState extends State<AddTraineePage> {
                   ],
                 ),
               ),
+      ),
       ),
     );
   }

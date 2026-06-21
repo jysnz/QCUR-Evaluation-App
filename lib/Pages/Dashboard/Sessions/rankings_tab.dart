@@ -645,10 +645,8 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
                 Expanded(
                   child: Row(
                     children: [
-                      if (hasSubs) ...[
-                        const Icon(Icons.folder_outlined, size: 12, color: kForegroundMuted),
-                        const SizedBox(width: 5),
-                      ],
+                      const Icon(Icons.folder_outlined, size: 12, color: kForegroundMuted),
+                      const SizedBox(width: 5),
                       Expanded(
                         child: Text(
                           act['name'].toString(),
@@ -1232,14 +1230,12 @@ class _TraineeScoreSheetState extends State<_TraineeScoreSheet> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (hasSubs) ...[
-                const Padding(
-                  padding: EdgeInsets.only(top: 2),
-                  child: Icon(Icons.folder_outlined,
-                      size: 14, color: kForegroundMuted),
-                ),
-                const SizedBox(width: 6),
-              ],
+              const Padding(
+                padding: EdgeInsets.only(top: 2),
+                child: Icon(Icons.folder_outlined,
+                    size: 14, color: kForegroundMuted),
+              ),
+              const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   act['name'].toString(),

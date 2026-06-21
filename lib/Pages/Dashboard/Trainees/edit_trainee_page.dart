@@ -106,13 +106,61 @@ class _EditTraineePageState extends State<EditTraineePage> {
       AppCache.instance.invalidate('st_full:${widget.sessionId}');
       AppCache.instance.invalidateWhere((k) => k.startsWith('st:'));
 
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) {
+        setState(() => _isSaving = false);
+        await _showSuccessDialog(_nameController.text.trim());
+        if (mounted) Navigator.of(context).pop(true);
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving: $e')));
         setState(() => _isSaving = false);
       }
     }
+  }
+
+  Future<void> _showSuccessDialog(String name) async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: kSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: kSuccess.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check_rounded, color: kSuccess, size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(child: Text('Changes Saved', style: AppTypography.h3)),
+          ],
+        ),
+        content: Text(
+          '$name has been successfully updated.',
+          style: AppTypography.body,
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kAccent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusLarge)),
+                elevation: 0,
+              ),
+              child: const Text('Done', style: TextStyle(fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   String _getInitials(String name) {

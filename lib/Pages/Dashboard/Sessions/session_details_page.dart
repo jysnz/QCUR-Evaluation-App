@@ -21,6 +21,7 @@ class SessionDetailsPage extends StatefulWidget {
 
 class _SessionDetailsPageState extends State<SessionDetailsPage> {
   int _currentIndex = 0;
+  int _previousIndex = 0;
   final _rankingsVisibilityTrigger = ValueNotifier<int>(0);
 
   late final List<Widget> _tabs;
@@ -55,7 +56,17 @@ class _SessionDetailsPageState extends State<SessionDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: _currentIndex == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          setState(() {
+            _currentIndex = _previousIndex;
+            _previousIndex = 0;
+          });
+        }
+      },
+      child: Scaffold(
       backgroundColor: kBackground,
       body: IndexedStack(
         index: _currentIndex,
@@ -79,7 +90,10 @@ class _SessionDetailsPageState extends State<SessionDetailsPage> {
             if (index == 2 && _currentIndex != 2) {
               _rankingsVisibilityTrigger.value++;
             }
-            setState(() => _currentIndex = index);
+            setState(() {
+              _previousIndex = _currentIndex;
+              _currentIndex = index;
+            });
           },
           backgroundColor: kSurface,
           selectedItemColor: kAccent,
@@ -106,6 +120,7 @@ class _SessionDetailsPageState extends State<SessionDetailsPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

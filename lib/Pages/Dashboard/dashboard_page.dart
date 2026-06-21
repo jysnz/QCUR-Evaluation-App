@@ -18,10 +18,52 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   int _currentIndex = 0;
+  int _previousIndex = 0;
+
+  Future<void> _confirmExit() async {
+    final shouldExit = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: kSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius)),
+        title: const Text('Exit App?', style: AppTypography.h3),
+        content: const Text(
+          'Are you sure you want to exit the application?',
+          style: AppTypography.body,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Exit', style: TextStyle(color: kError, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (shouldExit == true && mounted) {
+      Navigator.of(context).pop();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_currentIndex != 0) {
+          setState(() {
+            _currentIndex = _previousIndex;
+            _previousIndex = 0;
+          });
+        } else {
+          _confirmExit();
+        }
+      },
+      child: Scaffold(
       backgroundColor: kBackground,
       body: IndexedStack(
         index: _currentIndex,
@@ -44,7 +86,10 @@ class _DashboardPageState extends State<DashboardPage> {
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
-          onTap: (index) => setState(() => _currentIndex = index),
+          onTap: (index) => setState(() {
+            _previousIndex = _currentIndex;
+            _currentIndex = index;
+          }),
           backgroundColor: kSurface,
           selectedItemColor: kAccent,
           unselectedItemColor: kForegroundDisabled,
@@ -62,6 +107,7 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

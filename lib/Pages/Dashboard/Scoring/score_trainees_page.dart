@@ -28,7 +28,8 @@ class ScoreTraineesPage extends StatefulWidget {
   State<ScoreTraineesPage> createState() => _ScoreTraineesPageState();
 }
 
-class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
+class _ScoreTraineesPageState extends State<ScoreTraineesPage>
+    with WidgetsBindingObserver {
   final supabase = Supabase.instance.client;
   bool _isLoading = true;
   List<Map<String, dynamic>> _trainees = [];
@@ -47,11 +48,18 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
   String _searchQuery = '';
   String? _currentUserName;
 
+  String? _activeScoringTraineeId;
+  RealtimeChannel? _realtimeChannel;
+  bool _pendingRealtimeRefresh = false;
+  bool _isSilentRefreshing = false;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadCurrentUser();
     _fetchData();
+    _subscribeToResults();
   }
 
   Future<void> _loadCurrentUser() async {
@@ -74,11 +82,24 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     for (final c in _scoreControllers.values) { c.dispose(); }
     for (final sub in _subScoreControllers.values) {
       for (final c in sub.values) { c.dispose(); }
     }
+    _unsubscribeFromResults();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      _unsubscribeFromResults();
+    } else if (state == AppLifecycleState.resumed) {
+      _subscribeToResults();
+      if (mounted) _silentRefresh();
+    }
   }
 
   Future<void> _refreshData() async {
@@ -90,6 +111,57 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
         : 'st:${widget.sessionId}';
     cache.invalidate(stKey);
     await _fetchData();
+  }
+
+  Future<void> _silentRefresh() async {
+    if (_isSilentRefreshing) return;
+    _isSilentRefreshing = true;
+    try {
+      final cache = AppCache.instance;
+      cache.invalidate('subs:${widget.activityId}');
+      cache.invalidate('results:${widget.activityId}');
+      final stKey = widget.roleId != null
+          ? 'st:${widget.sessionId}:${widget.roleId}'
+          : 'st:${widget.sessionId}';
+      cache.invalidate(stKey);
+      await _fetchSubActivities();
+      await _fetchTraineesAndResults();
+    } catch (e) {
+      debugPrint('Silent refresh error: $e');
+    } finally {
+      _isSilentRefreshing = false;
+    }
+  }
+
+  // ---------- Realtime ----------
+
+  void _subscribeToResults() {
+    if (_realtimeChannel != null) return;
+    _realtimeChannel = supabase
+        .channel('score_trainees:${widget.activityId}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'activity_results',
+          callback: (_) => _onRemoteScoreUpdate(),
+        )
+        .subscribe();
+  }
+
+  void _unsubscribeFromResults() {
+    if (_realtimeChannel != null) {
+      supabase.removeChannel(_realtimeChannel!);
+      _realtimeChannel = null;
+    }
+  }
+
+  void _onRemoteScoreUpdate() {
+    if (!mounted) return;
+    if (_activeScoringTraineeId != null) {
+      _pendingRealtimeRefresh = true;
+      return;
+    }
+    _silentRefresh();
   }
 
   Future<void> _fetchData() async {
@@ -242,94 +314,169 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
   // ---------- Save ----------
 
   Future<void> _saveSingleScore(String traineeId) async {
-    try {
-      final scoreText = _scoreControllers[traineeId]!.text.trim();
-      if (scoreText.isEmpty) return;
-      final score = double.tryParse(scoreText);
-      if (score == null) return;
+    final scoreText = _scoreControllers[traineeId]!.text.trim();
+    if (scoreText.isEmpty) return;
+    final score = double.tryParse(scoreText);
+    if (score == null) return;
 
+    final optimistic = {
+      'activity_id': widget.activityId,
+      'trainee_id': traineeId,
+      'score': score,
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+
+    // Optimistic update — card reflects scored state immediately.
+    if (mounted) setState(() => _resultsMap[traineeId] = optimistic);
+
+    try {
       await supabase.from('activity_results').upsert(
-        {
-          'activity_id': widget.activityId,
-          'trainee_id': traineeId,
-          'score': score,
-        },
+        {'activity_id': widget.activityId, 'trainee_id': traineeId, 'score': score},
         onConflict: 'activity_id, trainee_id',
       );
-
       AppCache.instance.invalidate('results:${widget.activityId}');
-
       if (mounted) {
-        setState(() {
-          _resultsMap[traineeId] = {
-            'activity_id': widget.activityId,
-            'trainee_id': traineeId,
-            'score': score,
-            'updated_at': DateTime.now().toIso8601String(),
-          };
-        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Saved'), duration: Duration(seconds: 1)),
         );
       }
     } catch (e) {
+      // Revert on failure.
       if (mounted) {
+        setState(() => _resultsMap.remove(traineeId));
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
 
   Future<void> _saveAllSubScores(String traineeId) async {
+    final upserts = <Map<String, dynamic>>[];
+    for (final sub in _subActivities) {
+      final subId = sub['id'] as String;
+      final scoreText = _subScoreControllers[traineeId]?[subId]?.text.trim() ?? '';
+      if (scoreText.isNotEmpty) {
+        final score = double.tryParse(scoreText);
+        if (score != null) {
+          upserts.add({'activity_id': subId, 'trainee_id': traineeId, 'score': score});
+        }
+      }
+    }
+
+    if (upserts.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Enter at least one score to save')),
+        );
+      }
+      return;
+    }
+
+    // Optimistic update — badges reflect scored state immediately.
+    if (mounted) {
+      setState(() {
+        for (final u in upserts) {
+          _subResultsMap['${u['activity_id']}:$traineeId'] = {
+            ...u,
+            'updated_at': DateTime.now().toIso8601String(),
+          };
+        }
+      });
+    }
+
     try {
-      final upserts = <Map<String, dynamic>>[];
-      for (final sub in _subActivities) {
-        final subId = sub['id'] as String;
-        final scoreText = _subScoreControllers[traineeId]?[subId]?.text.trim() ?? '';
-        if (scoreText.isNotEmpty) {
-          final score = double.tryParse(scoreText);
-          if (score != null) {
-            upserts.add({
-              'activity_id': subId,
-              'trainee_id': traineeId,
-              'score': score,
-            });
-          }
-        }
-      }
-
-      if (upserts.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Enter at least one score to save')),
-          );
-        }
-        return;
-      }
-
       await supabase.from('activity_results').upsert(
         upserts,
         onConflict: 'activity_id, trainee_id',
       );
-
       for (final sub in _subActivities) {
         AppCache.instance.invalidate('results:${sub['id']}');
       }
-
       if (mounted) {
-        setState(() {
-          for (final u in upserts) {
-            _subResultsMap['${u['activity_id']}:$traineeId'] = {
-              ...u,
-              'updated_at': DateTime.now().toIso8601String(),
-            };
-          }
-        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Saved'), duration: Duration(seconds: 1)),
         );
       }
     } catch (e) {
+      // Revert on failure.
       if (mounted) {
+        setState(() {
+          for (final u in upserts) {
+            _subResultsMap.remove('${u['activity_id']}:$traineeId');
+          }
+        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
+
+  Future<void> _removeSingleScore(String traineeId) async {
+    final previous = _resultsMap[traineeId];
+    if (previous == null) return;
+    if (mounted) {
+      setState(() {
+        _resultsMap.remove(traineeId);
+        _scoreControllers[traineeId]?.text = '';
+      });
+    }
+    try {
+      await supabase
+          .from('activity_results')
+          .delete()
+          .eq('activity_id', widget.activityId)
+          .eq('trainee_id', traineeId);
+      AppCache.instance.invalidate('results:${widget.activityId}');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Score removed'), duration: Duration(seconds: 1)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _resultsMap[traineeId] = previous);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
+
+  Future<void> _removeAllSubScores(String traineeId) async {
+    final subIds = _subActivities.map((s) => s['id'] as String).toList();
+    final previousEntries = <String, Map<String, dynamic>>{};
+    for (final subId in subIds) {
+      final key = '$subId:$traineeId';
+      if (_subResultsMap.containsKey(key)) previousEntries[key] = _subResultsMap[key]!;
+    }
+    if (previousEntries.isEmpty) return;
+    if (mounted) {
+      setState(() {
+        for (final key in previousEntries.keys) {
+          _subResultsMap.remove(key);
+        }
+        for (final subId in subIds) {
+          _subScoreControllers[traineeId]?[subId]?.text = '';
+        }
+      });
+    }
+    try {
+      await supabase
+          .from('activity_results')
+          .delete()
+          .eq('trainee_id', traineeId)
+          .inFilter('activity_id', subIds);
+      for (final sub in _subActivities) {
+        AppCache.instance.invalidate('results:${sub['id']}');
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Scores removed'), duration: Duration(seconds: 1)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          for (final entry in previousEntries.entries) {
+            _subResultsMap[entry.key] = entry.value;
+          }
+        });
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
@@ -401,13 +548,17 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
         onConflict: 'activity_id, trainee_id',
       );
 
+      // Mark as active so realtime updates don't overwrite this user's input.
+      if (mounted) setState(() => _activeScoringTraineeId = traineeId);
+
       if (_subActivities.isNotEmpty) {
         await _openSubScoringSheet(trainee);
       } else {
         await _openSingleScoringSheet(trainee);
       }
     } finally {
-      // Always release the lock when the sheet closes or on any error.
+      // Clear active marker and release the lock when the sheet closes.
+      if (mounted) setState(() => _activeScoringTraineeId = null);
       try {
         await supabase
             .from('scoring_locks')
@@ -416,6 +567,11 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
             .eq('trainee_id', traineeId)
             .eq('user_id', currentUserId);
       } catch (_) {}
+
+      if (_pendingRealtimeRefresh && mounted) {
+        _pendingRealtimeRefresh = false;
+        _silentRefresh();
+      }
     }
   }
 
@@ -459,6 +615,12 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
                   _saveSingleScore(id);
                   Navigator.of(sheetCtx).pop();
                 },
+                onRemove: (_resultsMap[id]?['score'] != null)
+                    ? () {
+                        Navigator.of(sheetCtx).pop();
+                        _removeSingleScore(id);
+                      }
+                    : null,
               ),
             ],
           ),
@@ -517,6 +679,15 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
                   _saveAllSubScores(id);
                   Navigator.of(sheetCtx).pop();
                 },
+                onRemove: _subActivities.any((sub) {
+                      final r = _subResultsMap['${sub['id']}:$id'];
+                      return r != null && r['score'] != null;
+                    })
+                    ? () {
+                        Navigator.of(sheetCtx).pop();
+                        _removeAllSubScores(id);
+                      }
+                    : null,
               ),
             ],
           ),
@@ -705,43 +876,65 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage> {
     required BuildContext sheetCtx,
     required VoidCallback onSave,
     String saveLabel = 'Save Score',
+    VoidCallback? onRemove,
   }) =>
       Padding(
         padding: const EdgeInsets.all(kPadding),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: SizedBox(
-                height: 48,
-                child: OutlinedButton(
-                  onPressed: () => Navigator.of(sheetCtx).pop(),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: kForegroundMuted,
-                    side: BorderSide(color: kBorder.withValues(alpha: 0.5)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusLarge)),
-                  ),
-                  child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w600)),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              flex: 2,
-              child: SizedBox(
-                height: 48,
-                child: ElevatedButton.icon(
-                  onPressed: onSave,
-                  icon: const Icon(Icons.check_rounded, size: 18),
-                  label: Text(saveLabel, style: const TextStyle(fontWeight: FontWeight.w600)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kAccent,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusLarge)),
-                    elevation: 0,
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 48,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(sheetCtx).pop(),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: kForegroundMuted,
+                        side: BorderSide(color: kBorder.withValues(alpha: 0.5)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusLarge)),
+                      ),
+                      child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w600)),
+                    ),
                   ),
                 ),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: SizedBox(
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      onPressed: onSave,
+                      icon: const Icon(Icons.check_rounded, size: 18),
+                      label: Text(saveLabel, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kAccent,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusLarge)),
+                        elevation: 0,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
+            if (onRemove != null) ...[
+              const SizedBox(height: 6),
+              SizedBox(
+                width: double.infinity,
+                height: 38,
+                child: TextButton.icon(
+                  onPressed: onRemove,
+                  icon: const Icon(Icons.delete_outline_rounded, size: 15),
+                  label: const Text('Remove Score', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                  style: TextButton.styleFrom(
+                    foregroundColor: kError,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusLarge)),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       );

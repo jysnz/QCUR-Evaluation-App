@@ -308,7 +308,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
                   children: [
                     Row(
                       children: [
-                        if (hasSubActivities) ...[
+                        if (isParent) ...[
                           Container(
                             padding: const EdgeInsets.all(4),
                             decoration: BoxDecoration(
