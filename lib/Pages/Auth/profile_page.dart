@@ -75,7 +75,9 @@ class _ProfilePageState extends State<ProfilePage> {
             ? const Center(child: CircularProgressIndicator(color: kAccent))
             : SingleChildScrollView(
                 padding: const EdgeInsets.all(kPadding),
-                child: Column(
+                child: ResponsiveContainer(
+                  maxWidth: kMaxWidthForm,
+                  child: Column(
                   children: [
                     const SizedBox(height: 20),
                     // Avatar Section
@@ -139,6 +141,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       onTap: _signOut,
                     ),
                   ],
+                ),
                 ),
               ),
         ),

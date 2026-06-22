@@ -12,8 +12,8 @@ class RegisterPage extends StatefulWidget {
   final String? initialName;
   final String? initialImageUrl;
   final bool isGoogleSignUp;
-  final VoidCallback? onProfileComplete;
-  final VoidCallback? onRegistrationSuccess;
+  final Future<void> Function()? onProfileComplete;
+  final Future<void> Function()? onRegistrationSuccess;
 
   const RegisterPage({
     super.key,
@@ -102,58 +102,6 @@ class _RegisterPageState extends State<RegisterPage> {
     } catch (e) {
       debugPrint('Error picking image: $e');
     }
-  }
-
-  Future<void> _showSuccessDialog() async {
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          backgroundColor: kSurface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: const BoxDecoration(
-                  color: kAccent,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.check_rounded, size: 48, color: Colors.white),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Registration Complete!',
-                textAlign: TextAlign.center,
-                style: AppTypography.h3,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Welcome! Your profile has been created.',
-                textAlign: TextAlign.center,
-                style: AppTypography.caption,
-              ),
-              const SizedBox(height: 32),
-              AppButton(
-                label: 'Go to Dashboard',
-                onTap: () {
-                  Navigator.of(dialogContext).pop();
-                  if (widget.isGoogleSignUp) {
-                    widget.onProfileComplete?.call();
-                  } else {
-                    widget.onRegistrationSuccess?.call();
-                  }
-                  Navigator.of(context).popUntil((route) => route.isFirst);
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
   }
 
   Future<void> _showErrorDialog(String message) async {
@@ -293,7 +241,7 @@ class _RegisterPageState extends State<RegisterPage> {
     try {
       final supabase = Supabase.instance.client;
       final user = supabase.auth.currentUser;
-      
+
       String? avatarUrl = widget.initialImageUrl;
 
       // Handle image upload if selected
@@ -359,9 +307,24 @@ class _RegisterPageState extends State<RegisterPage> {
         }
       }
       
+      if (mounted) setState(() => _isRegistering = false);
+
+      // Hand off to AuthRouter, which owns the post-registration WelcomePage and
+      // then the dashboard. This page may already be disposed here (in the Google
+      // flow it is AuthRouter's own child and gets torn down when the profile
+      // save fires an auth event), so we must NOT depend on `mounted`/this page's
+      // Navigator to show the welcome screen.
+      if (widget.isGoogleSignUp) {
+        await widget.onProfileComplete?.call();
+      } else {
+        await widget.onRegistrationSuccess?.call();
+      }
+
+      // Email flow only: this page was pushed on top of AuthRouter, so pop it to
+      // reveal the WelcomePage the router is now showing. In the Google flow this
+      // page is already gone and `mounted` is false, so the pop is skipped.
       if (mounted) {
-        setState(() => _isRegistering = false);
-        await _showSuccessDialog();
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
     } on AuthException catch (e, stackTrace) {
       await Sentry.captureException(e, stackTrace: stackTrace);
@@ -423,7 +386,9 @@ class _RegisterPageState extends State<RegisterPage> {
               child: Center(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(horizontal: kPadding, vertical: 4.0),
-                  child: Column(
+                  child: ResponsiveContainer(
+                    maxWidth: kMaxWidthForm,
+                    child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
@@ -570,6 +535,7 @@ class _RegisterPageState extends State<RegisterPage> {
                           ],
                         ),
                     ],
+                  ),
                   ),
                 ),
               ),

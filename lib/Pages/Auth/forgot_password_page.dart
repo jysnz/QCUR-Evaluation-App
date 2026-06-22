@@ -24,7 +24,9 @@ class ForgotPasswordPage extends StatelessWidget {
             child: Center(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
-                child: Column(
+                child: ResponsiveContainer(
+                  maxWidth: kMaxWidthForm,
+                  child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -72,6 +74,7 @@ class ForgotPasswordPage extends StatelessWidget {
                       onTap: () => Navigator.of(context).pop(),
                     ),
                   ],
+                ),
                 ),
               ),
             ),

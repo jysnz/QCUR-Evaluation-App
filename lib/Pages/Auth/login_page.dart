@@ -9,7 +9,7 @@ import 'package:qcur_evaluation/Widgets/design_system.dart';
 
 class LoginPage extends StatefulWidget {
   final VoidCallback? onRegister;
-  final VoidCallback? onRegistrationSuccess;
+  final Future<void> Function()? onRegistrationSuccess;
 
   const LoginPage({super.key, this.onRegister, this.onRegistrationSuccess});
 
@@ -143,7 +143,9 @@ class _LoginPageState extends State<LoginPage> {
             child: Center(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: kPadding, vertical: 16.0),
-                child: Column(
+                child: ResponsiveContainer(
+                  maxWidth: kMaxWidthForm,
+                  child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -258,6 +260,7 @@ class _LoginPageState extends State<LoginPage> {
                       ],
                     ),
                   ],
+                ),
                 ),
               ),
             ),

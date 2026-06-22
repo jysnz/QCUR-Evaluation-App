@@ -362,7 +362,9 @@ class _EditActivityPageState extends State<EditActivityPage> {
       ),
       body: AppBackground(
         child: SafeArea(
-          child: Padding(
+          child: ResponsiveContainer(
+            maxWidth: kMaxWidthForm,
+            child: Padding(
             padding: const EdgeInsets.all(kPadding),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -489,6 +491,7 @@ class _EditActivityPageState extends State<EditActivityPage> {
                 ),
               ],
             ),
+          ),
           ),
         ),
       ),

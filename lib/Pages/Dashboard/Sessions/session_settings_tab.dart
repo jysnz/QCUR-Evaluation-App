@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qcur_evaluation/Services/app_cache.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/Sessions/edit_session_page.dart';
+import 'package:qcur_evaluation/Pages/Dashboard/Sessions/pdf_report_page.dart';
 
 class SessionSettingsTab extends StatefulWidget {
   final String sessionId;
@@ -106,6 +107,17 @@ class _SessionSettingsTabState extends State<SessionSettingsTab> {
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('Delete failed: $e')));
     }
+  }
+
+  void _openPdfReport() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PdfReportPage(
+          sessionId: widget.sessionId,
+          sessionName: widget.sessionName,
+        ),
+      ),
+    );
   }
 
   void _showFormulaDialog() {
@@ -285,7 +297,9 @@ class _SessionSettingsTabState extends State<SessionSettingsTab> {
             const AppLoader()
           else
             SafeArea(
-              child: ListView(
+              child: ResponsiveContainer(
+                maxWidth: kMaxWidthContent,
+                child: ListView(
                 padding: const EdgeInsets.all(kPadding),
                 children: [
                   // Session section
@@ -341,7 +355,24 @@ class _SessionSettingsTabState extends State<SessionSettingsTab> {
                       onTap: _showFormulaDialog,
                     ),
                   ),
+
+                  const SizedBox(height: 28),
+
+                  // Analytics section
+                  _sectionLabel('Analytics', Icons.bar_chart_rounded),
+                  const SizedBox(height: 8),
+                  AppCard(
+                    padding: EdgeInsets.zero,
+                    child: _tile(
+                      icon: Icons.picture_as_pdf_rounded,
+                      iconColor: kInfo,
+                      title: 'Generate PDF Report',
+                      subtitle: 'Export raw scores for selected activities',
+                      onTap: _openPdfReport,
+                    ),
+                  ),
                 ],
+              ),
               ),
             ),
         ],

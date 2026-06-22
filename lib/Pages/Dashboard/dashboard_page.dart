@@ -329,7 +329,9 @@ class _SessionsTabState extends State<_SessionsTab> {
         children: [
           const TechnicalGridBackground(),
           SafeArea(
-            child: Padding(
+            child: ResponsiveContainer(
+              maxWidth: kMaxWidthContent,
+              child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: kPadding),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -372,6 +374,7 @@ class _SessionsTabState extends State<_SessionsTab> {
                   const SizedBox(height: 16),
                 ],
               ),
+            ),
             ),
           ),
         ],

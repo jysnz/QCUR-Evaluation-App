@@ -195,7 +195,9 @@ class _AddTraineePageState extends State<AddTraineePage> {
         child: _isLoading
             ? const AppLoader()
             : SafeArea(
-                child: Column(
+                child: ResponsiveContainer(
+                  maxWidth: kMaxWidthForm,
+                  child: Column(
                   children: [
                     Expanded(
                       child: SingleChildScrollView(
@@ -313,6 +315,7 @@ class _AddTraineePageState extends State<AddTraineePage> {
                       ),
                     ),
                   ],
+                ),
                 ),
               ),
       ),

@@ -397,7 +397,9 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
         toolbarHeight: 44,
         title: const Text('Leaderboard', style: AppTypography.h3),
       ),
-      body: RefreshIndicator(
+      body: ResponsiveContainer(
+        maxWidth: kMaxWidthContent,
+        child: RefreshIndicator(
         onRefresh: () async {
           AppCache.instance.invalidate('rankings:${widget.sessionId}');
           await _fetchAll(forceRefresh: true);
@@ -451,6 +453,7 @@ class _RankingsTabState extends State<RankingsTab> with WidgetsBindingObserver {
               ),
           ],
         ),
+      ),
       ),
     );
   }

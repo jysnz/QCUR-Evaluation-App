@@ -137,7 +137,9 @@ class _CreateSessionPageState extends State<CreateSessionPage> {
       ),
       body: AppBackground(
         child: SafeArea(
-          child: Padding(
+          child: ResponsiveContainer(
+            maxWidth: kMaxWidthForm,
+            child: Padding(
             padding: const EdgeInsets.all(kPadding),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -184,6 +186,7 @@ class _CreateSessionPageState extends State<CreateSessionPage> {
                 ),
               ],
             ),
+          ),
           ),
         ),
       ),

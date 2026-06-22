@@ -187,7 +187,9 @@ class _EditTraineePageState extends State<EditTraineePage> {
         child: _isLoading
             ? const AppLoader()
             : SafeArea(
-                child: Column(
+                child: ResponsiveContainer(
+                  maxWidth: kMaxWidthForm,
+                  child: Column(
                   children: [
                     Expanded(
                       child: SingleChildScrollView(
@@ -308,6 +310,7 @@ class _EditTraineePageState extends State<EditTraineePage> {
                       ),
                     ),
                   ],
+                ),
                 ),
               ),
       ),

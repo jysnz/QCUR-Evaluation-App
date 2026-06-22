@@ -169,7 +169,9 @@ class _TraineesPageState extends State<TraineesPage> {
       ),
       body: AppBackground(
         child: SafeArea(
-          child: Padding(
+          child: ResponsiveContainer(
+            maxWidth: kMaxWidthContent,
+            child: Padding(
             padding: const EdgeInsets.all(kPadding),
             child: Column(
               children: [
@@ -189,6 +191,7 @@ class _TraineesPageState extends State<TraineesPage> {
                 ),
               ],
             ),
+          ),
           ),
         ),
       ),

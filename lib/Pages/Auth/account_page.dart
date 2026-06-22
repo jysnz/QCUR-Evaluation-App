@@ -183,7 +183,9 @@ class _AccountPageState extends State<AccountPage> {
         child: _isLoading
             ? const Center(child: CircularProgressIndicator(color: kAccent))
             : SafeArea(
-                child: Padding(
+                child: ResponsiveContainer(
+                  maxWidth: kMaxWidthForm,
+                  child: Padding(
                   padding: const EdgeInsets.all(kPadding),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -225,6 +227,7 @@ class _AccountPageState extends State<AccountPage> {
                       ),
                     ],
                   ),
+                ),
                 ),
               ),
       ),

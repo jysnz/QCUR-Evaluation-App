@@ -1011,7 +1011,9 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage>
           _isLoading
               ? const AppLoader()
               : SafeArea(
-                  child: RefreshIndicator(
+                  child: ResponsiveContainer(
+                    maxWidth: kMaxWidthContent,
+                    child: RefreshIndicator(
                     onRefresh: _refreshData,
                     color: kAccent,
                     backgroundColor: kSurfaceElevated,
@@ -1029,6 +1031,7 @@ class _ScoreTraineesPageState extends State<ScoreTraineesPage>
                         ],
                       ),
                     ),
+                  ),
                   ),
                 ),
         ],

@@ -5,6 +5,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:qcur_evaluation/Pages/Auth/login_page.dart';
 import 'package:qcur_evaluation/Pages/Dashboard/dashboard_page.dart';
 import 'package:qcur_evaluation/Pages/Auth/register_page.dart';
+import 'package:qcur_evaluation/Pages/Auth/welcome_page.dart';
 import 'package:qcur_evaluation/Widgets/design_system.dart';
 
 Future<void> main() async {
@@ -60,7 +61,9 @@ class AuthRouter extends StatefulWidget {
 class _AuthRouterState extends State<AuthRouter> {
   bool _checkingProfile = false;
   bool _hasProfile = false;
+  bool _showWelcome = false;
   Session? _session;
+  int _profileCheckSeq = 0;
 
   @override
   void initState() {
@@ -85,6 +88,7 @@ class _AuthRouterState extends State<AuthRouter> {
           setState(() {
             _hasProfile = false;
             _checkingProfile = false;
+            _showWelcome = false;
           });
         }
       }
@@ -94,6 +98,7 @@ class _AuthRouterState extends State<AuthRouter> {
   Future<void> _checkProfile() async {
     if (_session == null) return;
 
+    final mySeq = ++_profileCheckSeq;
     setState(() => _checkingProfile = true);
     try {
       final profile = await Supabase.instance.client
@@ -103,13 +108,13 @@ class _AuthRouterState extends State<AuthRouter> {
           .maybeSingle();
 
       final isComplete = profile != null && profile['profile_complete'] == true;
-      if (mounted) {
+      if (mounted && mySeq == _profileCheckSeq) {
         if (isComplete) {
           await Sentry.configureScope((scope) {
             scope.setUser(SentryUser(
               id: _session!.user.id,
               email: _session!.user.email,
-              name: profile!['full_name']?.toString(),
+              name: profile['full_name']?.toString(),
             ));
           });
         }
@@ -120,16 +125,24 @@ class _AuthRouterState extends State<AuthRouter> {
       }
     } catch (e, stackTrace) {
       await Sentry.captureException(e, stackTrace: stackTrace);
-      if (mounted) {
+      if (mounted && mySeq == _profileCheckSeq) {
         setState(() => _checkingProfile = false);
       }
     }
   }
 
+  /// Called by RegisterPage once the profile has been saved. Flags the
+  /// post-registration welcome screen so the router shows it (instead of
+  /// jumping straight to the dashboard) and refreshes the profile state.
+  Future<void> _onRegistered() async {
+    if (mounted) setState(() => _showWelcome = true);
+    await _checkProfile();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_session == null) {
-      return LoginPage(onRegistrationSuccess: _checkProfile);
+      return LoginPage(onRegistrationSuccess: _onRegistered);
     }
 
     if (_checkingProfile) {
@@ -147,7 +160,13 @@ class _AuthRouterState extends State<AuthRouter> {
         initialEmail: user.email,
         initialName: user.userMetadata?['full_name'],
         initialImageUrl: user.userMetadata?['avatar_url'],
-        onProfileComplete: () => _checkProfile(),
+        onProfileComplete: _onRegistered,
+      );
+    }
+
+    if (_showWelcome) {
+      return WelcomePage(
+        onGoToDashboard: () => setState(() => _showWelcome = false),
       );
     }
 

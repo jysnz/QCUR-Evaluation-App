@@ -24,6 +24,31 @@ const kPadding = 16.0;
 const kPaddingLarge = 24.0;
 const kPaddingSmall = 8.0;
 
+// --- RESPONSIVE BREAKPOINTS ---
+// Width thresholds used to adapt layout between phones, tablets and large
+// screens. Matches Material's common breakpoints.
+const double kBreakpointTablet = 600.0;
+const double kBreakpointDesktop = 1024.0;
+
+// Max content widths so phone-first layouts don't stretch edge-to-edge on
+// larger screens. Forms stay narrow; content/list pages get a bit more room.
+const double kMaxWidthForm = 480.0;
+const double kMaxWidthContent = 840.0;
+
+extension ResponsiveContext on BuildContext {
+  double get screenWidth => MediaQuery.sizeOf(this).width;
+
+  bool get isTablet => screenWidth >= kBreakpointTablet;
+  bool get isDesktop => screenWidth >= kBreakpointDesktop;
+
+  /// Picks a value by breakpoint, falling back to the phone value.
+  T responsive<T>({required T phone, T? tablet, T? desktop}) {
+    if (isDesktop && desktop != null) return desktop;
+    if ((isTablet || isDesktop) && tablet != null) return tablet;
+    return phone;
+  }
+}
+
 // --- ELEVATION ---
 const List<BoxShadow> kCardShadow = [
   BoxShadow(
@@ -106,6 +131,33 @@ class AppTypography {
 }
 
 // --- COMPONENTS ---
+
+/// Centers content and caps its width on large screens so phone-first layouts
+/// don't stretch edge-to-edge on tablets. Use as a drop-in wrapper around a
+/// page's body (scroll views, lists, forms).
+class ResponsiveContainer extends StatelessWidget {
+  final Widget child;
+  final double maxWidth;
+  final AlignmentGeometry alignment;
+
+  const ResponsiveContainer({
+    super.key,
+    required this.child,
+    this.maxWidth = kMaxWidthContent,
+    this.alignment = Alignment.topCenter,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: alignment,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: child,
+      ),
+    );
+  }
+}
 
 class AppBackground extends StatelessWidget {
   final Widget child;

@@ -131,7 +131,9 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
       ),
       body: AppBackground(
         child: SafeArea(
-          child: Padding(
+          child: ResponsiveContainer(
+            maxWidth: kMaxWidthContent,
+            child: Padding(
             padding: const EdgeInsets.all(kPadding),
             child: Column(
               children: [
@@ -156,6 +158,7 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
                 ),
               ],
             ),
+          ),
           ),
         ),
       ),

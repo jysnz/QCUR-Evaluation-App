@@ -339,7 +339,9 @@ class _TraineeScoresPageState extends State<TraineeScoresPage> {
               : _groups.isEmpty
                   ? _buildEmptyState()
                   : SafeArea(
-                      child: RefreshIndicator(
+                      child: ResponsiveContainer(
+                        maxWidth: kMaxWidthContent,
+                        child: RefreshIndicator(
                         onRefresh: _refreshScores,
                         color: kAccent,
                         backgroundColor: kSurfaceElevated,
@@ -348,6 +350,7 @@ class _TraineeScoresPageState extends State<TraineeScoresPage> {
                           itemCount: _groups.length,
                           itemBuilder: (context, i) => _buildSessionGroup(_groups[i]),
                         ),
+                      ),
                       ),
                     ),
         ],

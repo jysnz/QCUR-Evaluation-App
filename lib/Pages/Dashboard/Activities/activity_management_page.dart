@@ -250,7 +250,9 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
           _isLoading
               ? const Center(child: CircularProgressIndicator(color: kAccent))
               : SafeArea(
-                  child: Column(
+                  child: ResponsiveContainer(
+                    maxWidth: kMaxWidthContent,
+                    child: Column(
                     children: [
                       Expanded(
                         child: RefreshIndicator(
@@ -275,6 +277,7 @@ class _ActivityManagementViewState extends State<ActivityManagementView> {
                         ),
                       ),
                     ],
+                  ),
                   ),
                 ),
         ],
