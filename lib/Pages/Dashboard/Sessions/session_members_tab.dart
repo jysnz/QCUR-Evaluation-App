@@ -352,6 +352,20 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
                     );
                     if (confirm == true) {
                       try {
+                        final activitiesData = await supabase
+                            .from('activities')
+                            .select('id')
+                            .eq('session_id', widget.sessionId);
+                        final activityIds = (activitiesData as List)
+                            .map((a) => a['id'] as String)
+                            .toList();
+                        if (activityIds.isNotEmpty) {
+                          await supabase
+                              .from('activity_results')
+                              .delete()
+                              .eq('trainee_id', id)
+                              .inFilter('activity_id', activityIds);
+                        }
                         await supabase
                             .from('session_trainees')
                             .delete()
@@ -359,6 +373,7 @@ class _SessionMembersTabState extends State<SessionMembersTab> {
                             .eq('trainee_id', id);
                         AppCache.instance.invalidate('trainees');
                         AppCache.instance.invalidate('st_full:${widget.sessionId}');
+                        AppCache.instance.invalidate('rankings:${widget.sessionId}');
                         AppCache.instance.invalidateWhere((k) => k.startsWith('st:'));
                         _fetchData();
                       } catch (e) {
